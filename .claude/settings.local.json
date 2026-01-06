@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/lee/Documents/github/me/aiNovel remote:*)"
+    ]
+  }
+}

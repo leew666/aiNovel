@@ -1,0 +1,80 @@
+[project]
+name = "ainovel"
+version = "0.1.0"
+description = "AI小说创作系统 - 支持300万字长篇小说自动化创作"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    # LLM SDK
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+    "dashscope>=1.14.0",
+
+    # Web框架 (阶段2)
+    # "fastapi>=0.104.0",
+    # "uvicorn>=0.24.0",
+    # "jinja2>=3.1.2",
+
+    # 数据库
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+
+    # 向量数据库 (阶段3)
+    # "chromadb>=0.4.0",
+
+    # 中文NLP
+    "jieba>=0.42.0",
+    "pypinyin>=0.49.0",
+
+    # 工具库
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "loguru>=0.7.0",
+    "tenacity>=8.2.0",
+    "httpx>=0.25.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+
+    # 长文本处理
+    "tiktoken>=0.5.0",
+
+    # 文风学习 (阶段3)
+    # "sentence-transformers>=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+ainovel = "ainovel.cli.main:cli"
+
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_backend"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ainovel*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
