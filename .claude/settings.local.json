@@ -8,7 +8,9 @@
       "Bash(command:*)",
       "Bash(npx @playwright/mcp@0.0.41:*)",
       "Bash(uvx:*)",
-      "Bash(env:*)"
+      "Bash(env:*)",
+      "Bash(python:*)",
+      "Bash(PYTHONPATH=/Users/lee/Documents/github/me/aiNovel python:*)"
     ]
   }
 }
