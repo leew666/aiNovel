@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - 创作流程{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📖 {{ novel.title }}</h2>
+    <p style="color: #7f8c8d; margin-bottom: 20px;">作者：{{ novel.author }} | 类型：{{ novel.genre or '未设置' }}</p>
+
+    <!-- 进度条 -->
+    <div style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #ecf0f1; border-radius: 4px;">
+            <div class="step {% if novel.current_step >= 1 %}active{% endif %}">步骤1: 思路</div>
+            <div class="step {% if novel.current_step >= 2 %}active{% endif %}">步骤2: 世界观</div>
+            <div class="step {% if novel.current_step >= 3 %}active{% endif %}">步骤3: 大纲</div>
+            <div class="step {% if novel.current_step >= 4 %}active{% endif %}">步骤4: 细纲</div>
+            <div class="step {% if novel.current_step >= 5 %}active{% endif %}">步骤5: 创作</div>
+            <div class="step {% if novel.current_step >= 6 %}active{% endif %}">步骤6: 完成</div>
+        </div>
+    </div>
+
+    <!-- 步骤1：创作思路 -->
+    <div class="card">
+        <h3>步骤1：创作思路</h3>
+        <form hx-post="/workflow/{{ novel.id }}/step1" hx-target="#step1-result">
+            <textarea name="initial_idea" placeholder="输入你的初始想法（可选，留空则使用小说描述）">{{ novel.description }}</textarea>
+            <button type="submit" class="btn">生成创作思路</button>
+        </form>
+        <div id="step1-result" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- 步骤2：世界观 -->
+    <div class="card">
+        <h3>步骤2：世界观和角色</h3>
+        <button hx-post="/workflow/{{ novel.id }}/step2"
+                hx-target="#step2-result"
+                class="btn">生成世界观</button>
+        <div id="step2-result" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- 步骤3：大纲 -->
+    <div class="card">
+        <h3>步骤3：生成大纲</h3>
+        <button hx-post="/workflow/{{ novel.id }}/step3"
+                hx-target="#step3-result"
+                class="btn">生成大纲</button>
+        <div id="step3-result" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- 步骤4-6预留 -->
+    <div class="card">
+        <p style="color: #7f8c8d;">步骤4-6功能正在开发中...</p>
+    </div>
+</div>
+
+<style>
+.step {
+    padding: 10px 20px;
+    border-radius: 4px;
+    background: white;
+    color: #95a5a6;
+}
+.step.active {
+    background: #3498db;
+    color: white;
+    font-weight: bold;
+}
+</style>
+{% endblock %}

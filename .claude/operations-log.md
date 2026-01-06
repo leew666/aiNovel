@@ -1,5 +1,95 @@
 # aiNovel项目开发 - 操作日志
 
+## 2026-01-06 (深夜): M6 Web 界面实现
+
+### 任务背景
+根据已实现的功能（LLM接入层、数据库层、记忆管理、生成核心、流程编排）实现 Web 界面，提供可视化操作界面。
+
+### 关键决策
+1. **技术栈选择**: FastAPI + HTMX + Jinja2（服务端渲染，符合KISS原则）
+2. **不支持流式输出**: BaseLLMClient 当前仅支持同步调用，阶段2再实现流式
+3. **依赖注入模式**: 使用 FastAPI Depends + Database.session_scope() 管理 Session
+4. **全局单例**: Database、LLM Client、Orchestrator 在应用生命周期中共享
+
+### 实施内容
+1. ✅ 配置管理 ([config.py](../ainovel/web/config.py))
+   - Pydantic Settings 管理环境变量
+   - 支持 DATABASE_URL、LLM_PROVIDER、API_KEY 等配置
+
+2. ✅ 依赖注入 ([dependencies.py](../ainovel/web/dependencies.py))
+   - get_db(): FastAPI 依赖函数，提供 Session
+   - SessionDep/OrchestratorDep: 类型别名简化路由签名
+   - 全局单例管理：_db_instance, _llm_client, _orchestrator
+
+3. ✅ FastAPI 主应用 ([main.py](../ainovel/web/main.py))
+   - 应用初始化、静态文件、模板配置
+   - 生命周期事件：startup（初始化数据库）、shutdown
+   - 错误处理：404/500 自定义页面
+
+4. ✅ RESTful API 路由
+   - [routers/novels.py](../ainovel/web/routers/novels.py): 项目管理（CRUD）
+     - GET /novels/ - 获取列表
+     - POST /novels/ - 创建项目
+     - GET /novels/{id} - 获取详情
+     - PUT /novels/{id} - 更新项目
+     - DELETE /novels/{id} - 删除项目
+   - [routers/workflow.py](../ainovel/web/routers/workflow.py): 6步流程路由
+     - POST /workflow/{novel_id}/step1-3 - 生成思路/世界观/大纲
+     - POST /workflow/chapter/{id}/step4-5 - 生成细纲/内容
+     - POST /workflow/{novel_id}/complete - 标记完成
+
+5. ✅ Pydantic 模型 ([schemas/](../ainovel/web/schemas/))
+   - [novel.py](../ainovel/web/schemas/novel.py): NovelCreate, NovelResponse, NovelDetailResponse
+   - [workflow.py](../ainovel/web/schemas/workflow.py): Step1-5Request/Response
+
+6. ✅ HTML 模板 ([templates/](../ainovel/web/templates/))
+   - [base.html](../ainovel/web/templates/base.html): 基础模板（HTMX + CSS）
+   - [index.html](../ainovel/web/templates/index.html): 首页（项目列表）
+   - [workflow.html](../ainovel/web/templates/workflow.html): 6步流程页
+   - [error.html](../ainovel/web/templates/error.html): 错误页面
+
+7. ✅ 依赖更新 ([pyproject.toml](../pyproject.toml))
+   - fastapi>=0.104.0
+   - uvicorn[standard]>=0.24.0
+   - jinja2>=3.1.2
+   - python-multipart>=0.0.6
+   - pydantic-settings>=2.0.0
+
+8. ✅ 文档 ([docs/web_guide.md](../docs/web_guide.md))
+   - 快速启动指南
+   - API 接口文档
+   - 开发建议和常见问题
+
+### 验证结果
+```bash
+# 模块导入成功
+✅ 导入成功！
+
+# 依赖已安装
+✅ fastapi, uvicorn, jinja2, pydantic-settings
+```
+
+### 技术亮点
+- **依赖注入**: 自动事务管理、线程安全、资源自动释放
+- **HTMX 交互**: 无需 JavaScript 框架，服务端渲染，局部刷新
+- **RESTful 设计**: 符合 REST 规范，自动生成 API 文档（/docs）
+- **类型安全**: Pydantic 验证 + Annotated 类型提示
+
+### 启动命令
+```bash
+# 启动服务器
+PYTHONPATH=. python -m uvicorn ainovel.web.main:app --reload
+
+# 访问
+http://localhost:8000  # 首页
+http://localhost:8000/docs  # API 文档
+```
+
+### 下一步
+开始实施 M7: CLI 接口（命令行工具）或完善 Web 界面的 HTMX 组件
+
+---
+
 ## 2026-01-06 (晚上): M5 流程编排层实现
 
 ### 任务背景

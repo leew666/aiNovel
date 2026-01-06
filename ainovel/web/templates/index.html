@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - AI小说创作系统{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📚 我的小说项目</h2>
+
+    <div style="margin-bottom: 20px;">
+        <button class="btn btn-success" onclick="showCreateForm()">+ 创建新项目</button>
+    </div>
+
+    <!-- 创建项目表单（默认隐藏） -->
+    <div id="create-form" style="display: none; margin-bottom: 30px; padding: 20px; background: #ecf0f1; border-radius: 4px;">
+        <h3>创建新项目</h3>
+        <form hx-post="/novels/" hx-target="#novels-list" hx-swap="beforeend">
+            <input type="text" name="title" placeholder="小说标题" required>
+            <textarea name="description" placeholder="简介或初始想法"></textarea>
+            <input type="text" name="author" placeholder="作者（默认：AI）" value="AI">
+            <input type="text" name="genre" placeholder="类型（如：玄幻、都市）">
+
+            <button type="submit" class="btn btn-success">创建</button>
+            <button type="button" class="btn" onclick="hideCreateForm()">取消</button>
+        </form>
+    </div>
+
+    <!-- 小说列表 -->
+    <div id="novels-list"
+         hx-get="/novels/"
+         hx-trigger="load"
+         hx-indicator=".loading">
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function showCreateForm() {
+    document.getElementById('create-form').style.display = 'block';
+}
+
+function hideCreateForm() {
+    document.getElementById('create-form').style.display = 'none';
+}
+</script>
+{% endblock %}
