@@ -11,11 +11,13 @@
    - **触发时机**: 分析需求前、识别关键疑问时、制定计划前必须调用
    - **输出**: 结构化思维链，帮助识别盲点与风险
 
-2. **Memory MCP** (`npx @modelcontextprotocol/server-memory`)
+2. **Memory MCP** (`@modelcontextprotocol/server-memory`)
    - **用途**: 项目知识记忆系统
    - **存储路径**: `~/.claude/memory.json`
    - **存储内容**: 项目决策、技术选型理由、最佳实践、已知问题、解决方案
    - **使用原则**: 长期知识存入 Memory，短期上下文存入 `.claude/context-*.json`
+   - **初始化**: 首次使用需手动创建实体（`create_entities`），文件会自动生成
+   - **状态**: ✓ 已安装并可用
 
 3. **Context7 MCP** (`npx @upstash/context7-mcp`)
    - **用途**: 智能代码/文档索引与检索
@@ -23,18 +25,26 @@
    - **适用场景**: 查找函数定义、理解模块关系、跟踪依赖链
 
 4. **Serena MCP** (`uvx serena-mcp-server` from `git+https://github.com/oraios/serena`)
-   - **用途**: 专家代理系统，用于复杂任务的自动化执行
+   - **用途**: 专家代理系统,用于复杂任务的自动化执行
    - **适用场景**:
      - 大规模代码重构（如重命名变量、提取函数）
      - 批量文档生成（如 API 文档、架构图）
      - 深度架构分析（如依赖关系图、性能瓶颈识别）
    - **调用要求**: 必须明确任务目标、输入/输出格式、验收标准
    - **注意**: Serena 会自动执行多步骤任务，需提前确认安全性
+   - **状态**: ⚠️ uvx 已安装，但 Serena 需手动安装：`uvx --from git+https://github.com/oraios/serena serena-mcp-server`
 
 5. **Playwright MCP** (`npx @playwright/mcp@0.0.41`)
    - **用途**: 浏览器自动化工具
    - **适用场景**: Web 应用测试、截图、表单填写、数据爬取
    - **限制**: 仅用于开发/测试环境，禁止用于生产环境自动化
+   - **状态**: ✓ 已安装并可用
+
+6. **Fetch MCP** (内置)
+   - **用途**: 获取 URL 内容并转换为 Markdown
+   - **适用场景**: 抓取文档、API 响应、网页内容
+   - **参数**: `url`（必需）、`max_length`（可选，默认 5000 字符）、`raw`（可选，返回原始 HTML）
+   - **状态**: ✓ 已安装并可用
 
 **上下文信息要求**
 - 在编码前至少分析 3 个现有实现或模式，识别可复用的接口与约束。

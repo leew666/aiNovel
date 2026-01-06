@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /Users/lee/Documents/github/me/aiNovel remote:*)"
+      "Bash(git -C /Users/lee/Documents/github/me/aiNovel remote:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(cat:*)",
+      "Bash(command:*)",
+      "Bash(npx @playwright/mcp@0.0.41:*)",
+      "Bash(uvx:*)",
+      "Bash(env:*)"
     ]
   }
 }
