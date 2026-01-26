@@ -13,6 +13,7 @@ from ainovel.core.prompt_manager import PromptManager
 from ainovel.db import novel_crud, volume_crud, chapter_crud
 from ainovel.db.novel import Novel
 from ainovel.memory import CharacterDatabase, WorldDatabase
+from ainovel.exceptions import NovelNotFoundError, InsufficientDataError, JSONParseError
 
 
 class OutlineGenerator:
@@ -57,14 +58,17 @@ class OutlineGenerator:
         # 1. 获取小说信息
         novel = novel_crud.get_by_id(self.session, novel_id)
         if novel is None:
-            raise ValueError(f"小说 ID {novel_id} 不存在")
+            raise NovelNotFoundError(novel_id)
 
         # 2. 获取角色和世界观数据
         characters = self.character_db.list_characters(novel_id)
         world_data = self.world_db.list_all(novel_id)
 
         if not characters:
-            raise ValueError(f"小说 ID {novel_id} 尚未创建角色，无法生成大纲")
+            raise InsufficientDataError(
+                f"小说 ID {novel_id} 尚未创建角色，无法生成大纲",
+                missing_data="characters"
+            )
 
         # 3. 转换为字典格式
         character_list = [char.to_dict() for char in characters]

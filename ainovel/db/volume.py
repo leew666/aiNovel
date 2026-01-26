@@ -25,6 +25,11 @@ class Volume(Base, TimestampMixin):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="分卷简介")
 
+    # 防剧透机制：当前卷设定（传入LLM）
+    volume_config: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="当前卷设定（仅包含当前卷的世界观和登场角色，传入LLM）"
+    )
+
     # 关系：多对一，多个分卷属于一部小说
     novel: Mapped["Novel"] = relationship("Novel", back_populates="volumes")
 

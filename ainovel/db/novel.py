@@ -42,12 +42,20 @@ class Novel(Base, TimestampMixin):
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="小说简介")
     author: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="作者")
+    genre: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="小说类型（如玄幻、都市、科幻）"
+    )
     status: Mapped[NovelStatus] = mapped_column(
         SQLEnum(NovelStatus),
         default=NovelStatus.DRAFT,
         nullable=False,
         index=True,
         comment="小说状态",
+    )
+
+    # 防剧透机制：全局设定（不传入LLM）
+    global_config: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="全局设定（包含完整世界观、最终boss、核心秘密，不传入LLM）"
     )
 
     # 流程管理字段

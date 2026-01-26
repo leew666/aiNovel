@@ -25,6 +25,7 @@ from ainovel.llm.exceptions import (
     RateLimitError,
     BudgetExceededError,
 )
+from ainovel.llm.cost_tracker import CostTracker, get_cost_tracker, reset_cost_tracker
 
 __all__ = [
     "BaseLLMClient",
@@ -38,4 +39,7 @@ __all__ = [
     "TokenLimitError",
     "RateLimitError",
     "BudgetExceededError",
+    "CostTracker",
+    "get_cost_tracker",
+    "reset_cost_tracker",
 ]

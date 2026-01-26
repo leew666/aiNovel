@@ -17,6 +17,12 @@ from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
 from ainovel.memory.character_db import CharacterDatabase
 from ainovel.memory.world_db import WorldDatabase
+from ainovel.exceptions import (
+    NovelNotFoundError,
+    ChapterNotFoundError,
+    InsufficientDataError,
+    InvalidFormatError,
+)
 
 
 class WorkflowOrchestrator:
@@ -64,7 +70,7 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         return {
             "novel_id": novel.id,
@@ -92,12 +98,15 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         # 使用用户提供的想法或小说描述
         idea = initial_idea or novel.description or ""
         if not idea:
-            raise ValueError("请提供初始想法或在小说描述中填写")
+            raise InsufficientDataError(
+                "无法生成创作思路，缺少初始想法",
+                missing_data="initial_idea或novel.description"
+            )
 
         # 生成创作思路
         result = self.planning_gen.generate_planning(initial_idea=idea)
@@ -129,13 +138,13 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         # 验证JSON格式
         try:
             planning_data = json.loads(planning_content)
         except json.JSONDecodeError as e:
-            raise ValueError(f"创作思路格式错误: {e}")
+            raise InvalidFormatError("创作思路JSON", str(e))
 
         novel.planning_content = planning_content
         session.commit()
@@ -161,10 +170,13 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         if not novel.planning_content:
-            raise ValueError("请先完成步骤1（创作思路）")
+            raise InsufficientDataError(
+                "无法生成世界观和角色，请先完成步骤1（创作思路）",
+                missing_data="planning_content"
+            )
 
         # 生成并保存世界观和角色
         result = self.world_building_gen.generate_and_save(
@@ -195,7 +207,7 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         # 创建OutlineGenerator实例（需要session）
         outline_gen = OutlineGenerator(self.llm_client, session)
@@ -263,7 +275,7 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         # 获取所有章节
         all_chapters = []
@@ -365,7 +377,7 @@ class WorkflowOrchestrator:
         """
         novel = novel_crud.get_by_id(session, novel_id)
         if not novel:
-            raise ValueError(f"小说不存在: {novel_id}")
+            raise NovelNotFoundError(novel_id)
 
         novel.workflow_status = WorkflowStatus.COMPLETED
         session.commit()

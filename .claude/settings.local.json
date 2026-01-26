@@ -10,7 +10,8 @@
       "Bash(uvx:*)",
       "Bash(env:*)",
       "Bash(python:*)",
-      "Bash(PYTHONPATH=/Users/lee/Documents/github/me/aiNovel python:*)"
+      "Bash(PYTHONPATH=/Users/lee/Documents/github/me/aiNovel python:*)",
+      "mcp__sequential-thinking__sequentialthinking"
     ]
   }
 }
