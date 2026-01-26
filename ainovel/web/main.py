@@ -48,7 +48,7 @@ async def startup_event():
 
     # 初始化数据库
     db = get_database()
-    db.create_tables()
+    db.create_all_tables()
     logger.info(f"✅ 数据库初始化完成: {settings.DATABASE_URL}")
 
     # 创建数据目录

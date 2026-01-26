@@ -39,8 +39,8 @@ async def list_novels(session: SessionDep, skip: int = 0, limit: int = 100):
     Returns:
         小说列表
     """
-    novels = novel_crud.get_multi(session, skip=skip, limit=limit)
-    total = len(novels)  # 简化版，生产环境应使用 count()
+    novels = novel_crud.get_all(session, skip=skip, limit=limit)
+    total = novel_crud.count(session)
 
     return NovelListResponse(
         total=total,
@@ -60,16 +60,14 @@ async def create_novel(novel_data: NovelCreate, session: SessionDep):
     Returns:
         创建的小说项目
     """
-    # 创建 Novel 对象
-    novel = Novel(
+    # 保存到数据库
+    created_novel = novel_crud.create(
+        session,
         title=novel_data.title,
         description=novel_data.description,
         author=novel_data.author,
         genre=novel_data.genre,
     )
-
-    # 保存到数据库
-    created_novel = novel_crud.create(session, novel)
 
     return NovelResponse.model_validate(created_novel)
 
@@ -133,7 +131,7 @@ async def update_novel(novel_id: int, novel_data: NovelUpdate, session: SessionD
 
     # 更新字段
     update_data = novel_data.model_dump(exclude_unset=True)
-    updated_novel = novel_crud.update(session, novel, update_data)
+    updated_novel = novel_crud.update(session, novel_id, **update_data)
 
     return NovelResponse.model_validate(updated_novel)
 
