@@ -174,6 +174,18 @@ class TestPromptManager:
         assert "角色记忆卡" in prompt
         assert "世界观卡片" in prompt
 
+    def test_generate_rewrite_prompt(self):
+        """测试生成改写提示词"""
+        prompt = PromptManager.generate_rewrite_prompt(
+            source_content="原文内容",
+            instruction="增强画面感",
+            rewrite_mode="expand",
+            preserve_plot=True,
+        )
+        assert "增强画面感" in prompt
+        assert "原文内容" in prompt
+        assert "扩写" in prompt
+
 
 class TestOutlineGenerator:
     """测试大纲生成器"""

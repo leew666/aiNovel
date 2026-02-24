@@ -18,6 +18,9 @@ from loguru import logger
 from ainovel.llm import BaseLLMClient
 from ainovel.db import chapter_crud, volume_crud
 from ainovel.memory import CharacterDatabase, WorldDatabase
+from ainovel.memory.lorebook import LorebookEngine
+from ainovel.memory.plot_arc import PlotArcTracker
+from ainovel.memory.rag_retriever import RAGRetriever
 
 
 class CompressionLevel(Enum):
@@ -109,16 +112,30 @@ class ContextCompressor:
         window_size: int = 10,
         token_budget: int = 1200,
         novel_id: Optional[int] = None,
-        character_names: Optional[List[str]] = None,
-        world_keywords: Optional[List[str]] = None,
+        scan_text: Optional[str] = None,
+        embedding_api_key: Optional[str] = None,
+        embedding_api_base: Optional[str] = None,
+        plot_arc_top_k: int = 5,
     ) -> Dict[str, Any]:
         """
         构建章节生成所需的上下文包
 
-        包含三部分：
+        包含四部分：
         1. 前情回顾（压缩后的历史章节）
-        2. 角色记忆卡
-        3. 世界观卡片
+        2. 角色记忆卡（Lorebook 关键词触发）
+        3. 世界观卡片（Lorebook 关键词触发）
+        4. 伏笔卡片（RAG 向量检索，按语义相关性排序）
+
+        Args:
+            volume_id: 分卷 ID
+            current_order: 当前章节序号
+            window_size: 回溯章节数
+            token_budget: 前情回顾 token 预算
+            novel_id: 小说 ID（可选，自动从 volume 推断）
+            scan_text: 用于 Lorebook 扫描和 RAG 检索的文本；为 None 时降级为全量返回
+            embedding_api_key: embedding API key（可选，不传则使用 TF-IDF 降级）
+            embedding_api_base: embedding API base URL（可选）
+            plot_arc_top_k: RAG 检索返回的最大伏笔数
         """
         previous_context = self.build_previous_context(
             volume_id=volume_id,
@@ -138,26 +155,57 @@ class ContextCompressor:
                 "previous_context": previous_context,
                 "character_memory_cards": [],
                 "world_memory_cards": [],
+                "plot_arc_cards": [],
             }
 
-        character_db = CharacterDatabase(self.session)
-        world_db = WorldDatabase(self.session)
+        # 有扫描文本时走 Lorebook 按需注入，否则降级到全量返回
+        if scan_text:
+            lorebook = LorebookEngine(self.session)
+            cards = lorebook.scan_and_format(resolved_novel_id, scan_text)
+            character_memory_cards = cards["character_cards"]
+            world_memory_cards = cards["world_cards"]
+        else:
+            character_db = CharacterDatabase(self.session)
+            world_db = WorldDatabase(self.session)
+            character_memory_cards = character_db.get_memory_cards(
+                novel_id=resolved_novel_id,
+                character_names=[],
+                limit_per_character=3,
+            )
+            world_memory_cards = world_db.get_world_cards(
+                novel_id=resolved_novel_id,
+                keywords=[],
+                limit=8,
+            )
 
-        character_memory_cards = character_db.get_memory_cards(
-            novel_id=resolved_novel_id,
-            character_names=character_names or [],
-            limit_per_character=3,
-        )
-        world_memory_cards = world_db.get_world_cards(
-            novel_id=resolved_novel_id,
-            keywords=world_keywords or [],
-            limit=8,
-        )
+        # RAG 伏笔检索：有 scan_text 时语义检索，否则返回活跃伏笔列表
+        plot_arc_cards: List[Dict[str, Any]] = []
+        try:
+            if scan_text:
+                rag = RAGRetriever(
+                    self.session,
+                    api_key=embedding_api_key,
+                    api_base=embedding_api_base,
+                )
+                plot_arc_cards = rag.retrieve(
+                    novel_id=resolved_novel_id,
+                    query=scan_text,
+                    top_k=plot_arc_top_k,
+                    only_active=True,
+                )
+            else:
+                tracker = PlotArcTracker(self.session)
+                plot_arc_cards = tracker.get_active_cards(
+                    resolved_novel_id, limit=plot_arc_top_k
+                )
+        except Exception as e:
+            logger.warning(f"伏笔检索失败，跳过 plot_arc_cards: {e}")
 
         return {
             "previous_context": previous_context,
             "character_memory_cards": character_memory_cards,
             "world_memory_cards": world_memory_cards,
+            "plot_arc_cards": plot_arc_cards,
         }
 
     def compress_and_cache(self, chapter_id: int) -> str:

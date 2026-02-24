@@ -19,6 +19,7 @@ from ainovel.workflow.generators.quality_check_generator import QualityCheckGene
 from ainovel.workflow.generators.consistency_generator import ConsistencyGenerator
 from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
+from ainovel.core.chapter_rewriter import ChapterRewriter
 from ainovel.memory.character_db import CharacterDatabase
 from ainovel.memory.world_db import WorldDatabase
 from ainovel.style.analyzer import StyleAnalyzer
@@ -336,6 +337,7 @@ class WorkflowOrchestrator:
         chapter_id: int,
         style_guide: Optional[str] = None,
         style_profile_id: Optional[int] = None,
+        authors_note: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         步骤5：为指定章节生成内容
@@ -345,6 +347,7 @@ class WorkflowOrchestrator:
             chapter_id: 章节ID
             style_guide: 写作风格指南（直接传入文本，优先级最高）
             style_profile_id: 指定文风档案ID（次优先）；若两者均为None则自动加载激活档案
+            authors_note: 作者备注，动态注入的写作指令（参考KoboldAI Author's Note）
 
         Returns:
             生成结果
@@ -369,7 +372,9 @@ class WorkflowOrchestrator:
 
         # 生成并保存章节内容
         result = chapter_gen.generate_and_save(
-            chapter_id=chapter_id, style_guide=style_guide
+            chapter_id=chapter_id,
+            style_guide=style_guide,
+            authors_note=authors_note or "",
         )
 
         # 更新小说状态（第一次生成内容时）
@@ -481,6 +486,75 @@ class WorkflowOrchestrator:
         )
         result["novel_id"] = chapter.volume.novel_id
         result["chapter_title"] = chapter.title
+        return result
+
+    def rewrite_chapter(
+        self,
+        session: Session,
+        chapter_id: int,
+        instruction: str,
+        target_scope: str = "paragraph",
+        range_start: Optional[int] = None,
+        range_end: Optional[int] = None,
+        preserve_plot: bool = True,
+        rewrite_mode: str = "rewrite",
+        save: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        章节局部改写/重写。
+
+        Args:
+            session: 数据库会话
+            chapter_id: 章节ID
+            instruction: 改写指令
+            target_scope: paragraph | chapter
+            range_start: 段落起始（1-based）
+            range_end: 段落结束（1-based）
+            preserve_plot: 是否保持主线
+            rewrite_mode: rewrite | polish | expand
+            save: 是否落库
+        """
+        from ainovel.db.crud import chapter_crud
+
+        chapter = chapter_crud.get_by_id(session, chapter_id)
+        if not chapter:
+            raise ValueError(f"章节不存在: {chapter_id}")
+
+        rewriter = ChapterRewriter(self.llm_client, session)
+        result = rewriter.rewrite(
+            chapter_id=chapter_id,
+            instruction=instruction,
+            target_scope=target_scope,
+            range_start=range_start,
+            range_end=range_end,
+            preserve_plot=preserve_plot,
+            rewrite_mode=rewrite_mode,
+            save=save,
+        )
+        result["novel_id"] = chapter.volume.novel_id
+        return result
+
+    def rollback_chapter_rewrite(
+        self,
+        session: Session,
+        chapter_id: int,
+        history_id: Optional[str] = None,
+        save: bool = True,
+    ) -> Dict[str, Any]:
+        """回滚章节到历史改写版本。"""
+        from ainovel.db.crud import chapter_crud
+
+        chapter = chapter_crud.get_by_id(session, chapter_id)
+        if not chapter:
+            raise ValueError(f"章节不存在: {chapter_id}")
+
+        rewriter = ChapterRewriter(self.llm_client, session)
+        result = rewriter.rollback(
+            chapter_id=chapter_id,
+            history_id=history_id,
+            save=save,
+        )
+        result["novel_id"] = chapter.volume.novel_id
         return result
 
     def learn_style(
@@ -601,6 +675,7 @@ class WorkflowOrchestrator:
         to_step: int = 5,
         chapter_range: Optional[str] = None,
         regenerate: bool = False,
+        max_workers: int = 1,
     ) -> Dict[str, Any]:
         """
         统一流水线入口：大纲 -> 细纲 -> 正文
@@ -612,6 +687,7 @@ class WorkflowOrchestrator:
             to_step: 结束步骤（须 >= from_step）
             chapter_range: 章节范围，如 "1-10" 或 "1,3,5"；None 表示全部
             regenerate: 是否强制重新生成已有内容
+            max_workers: 并行线程数，1 表示串行（默认），>1 启用多线程并行
 
         Returns:
             PipelineResult.to_dict()
@@ -622,6 +698,7 @@ class WorkflowOrchestrator:
             "to_step": to_step,
             "chapter_range": chapter_range,
             "regenerate": regenerate,
+            "max_workers": max_workers,
         }
         return runner.run(session, novel_id, plan)
 

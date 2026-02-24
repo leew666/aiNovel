@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}导入改写 - AI小说创作系统{% endblock %}
+
+{% block extra_head %}
+<style>
+.htmx-request .spinner-inline { display: inline-block !important; }
+.spinner-inline {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid #ccc;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/" style="color: #3498db; text-decoration: none;">← 返回首页</a>
+</div>
+
+<div class="card">
+    <h2>导入现有小说并逐章改写</h2>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">
+        支持按“第X章/Chapter X”等标题自动分章。无标题时将导入为单章。
+    </p>
+
+    <form hx-post="/importer/run"
+          hx-target="#import-result"
+          hx-swap="innerHTML"
+          hx-indicator="#import-spinner">
+        <input type="text" name="title" placeholder="新小说标题" required>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" name="author" placeholder="作者（可选）" style="flex: 1;">
+            <input type="text" name="genre" placeholder="类型（可选）" style="flex: 1;">
+        </div>
+        <textarea name="description" placeholder="简介（可选）"></textarea>
+
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <select name="rewrite_mode" style="max-width: 220px;">
+                <option value="rewrite" selected>重写</option>
+                <option value="polish">润色</option>
+                <option value="expand">扩写</option>
+            </select>
+            <label style="display: flex; gap: 6px; align-items: center; font-size: 13px; color: #555;">
+                <input type="checkbox" name="preserve_plot" checked>
+                保持主线剧情
+            </label>
+        </div>
+
+        <textarea name="instruction" placeholder="改写指令（必填，如：改为更紧凑的都市风格）" required></textarea>
+        <textarea name="raw_text" placeholder="原始小说内容（必填）" style="min-height: 240px;" required></textarea>
+
+        <button type="submit" class="btn btn-success">开始导入并改写
+            <span id="import-spinner" class="spinner-inline"></span>
+        </button>
+    </form>
+
+    <div id="import-result" class="result-box" style="display: none;"></div>
+</div>
+{% endblock %}

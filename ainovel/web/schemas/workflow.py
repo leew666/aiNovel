@@ -24,6 +24,7 @@ class Step5Request(BaseModel):
     """步骤5：章节内容生成请求"""
 
     style_guide: Optional[str] = Field(None, description="写作风格指南")
+    authors_note: Optional[str] = Field(None, description="作者备注，动态注入的写作指令（参考KoboldAI Author's Note）")
 
 
 class ConsistencyCheckRequest(BaseModel):
@@ -33,6 +34,25 @@ class ConsistencyCheckRequest(BaseModel):
         None, description="可选检查文本，不写入数据库"
     )
     strict: bool = Field(False, description="是否启用严格模式")
+
+
+class ChapterRewriteRequest(BaseModel):
+    """章节改写请求"""
+
+    instruction: str = Field(..., min_length=1, description="改写指令")
+    target_scope: str = Field("paragraph", description="改写范围：paragraph 或 chapter")
+    range_start: Optional[int] = Field(None, ge=1, description="段落起始（1-based）")
+    range_end: Optional[int] = Field(None, ge=1, description="段落结束（1-based）")
+    preserve_plot: bool = Field(True, description="是否保持主线剧情不变")
+    rewrite_mode: str = Field("rewrite", description="改写模式：rewrite/polish/expand")
+    save: bool = Field(False, description="是否保存改写结果到章节正文")
+
+
+class ChapterRollbackRequest(BaseModel):
+    """章节改写回滚请求"""
+
+    history_id: Optional[str] = Field(None, description="指定回滚版本ID；为空时回滚最近一次")
+    save: bool = Field(True, description="是否保存回滚结果到章节正文")
 
 
 # ============ 响应模型 ============
@@ -139,6 +159,39 @@ class ConsistencyCheckResponse(BaseModel):
     cost: float
 
 
+class ChapterRewriteResponse(BaseModel):
+    """章节改写响应"""
+
+    novel_id: int
+    chapter_id: int
+    chapter_title: str
+    rewrite_mode: str
+    target_scope: str
+    range_start: Optional[int] = None
+    range_end: Optional[int] = None
+    instruction: str
+    preserve_plot: bool
+    original_content: str
+    new_content: str
+    diff_summary: str
+    saved: bool
+    history_id: str
+    usage: dict[str, Any]
+    cost: float
+    model: Optional[str] = None
+
+
+class ChapterRollbackResponse(BaseModel):
+    """章节改写回滚响应"""
+
+    novel_id: int
+    chapter_id: int
+    chapter_title: str
+    history_id: Optional[str] = None
+    rolled_back_content: str
+    saved: bool
+
+
 class PipelineRunRequest(BaseModel):
     """流水线运行请求"""
 
@@ -148,6 +201,7 @@ class PipelineRunRequest(BaseModel):
         None, description="章节范围，如 '1-10' 或 '1,3,5'；None 表示全部"
     )
     regenerate: bool = Field(False, description="是否强制重新生成已有内容")
+    max_workers: int = Field(1, ge=1, le=16, description="并行线程数，1=串行，>1=多线程并行")
 
 
 class PipelineTaskResult(BaseModel):

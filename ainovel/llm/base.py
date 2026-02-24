@@ -116,3 +116,30 @@ class BaseLLMClient(ABC):
         """
         logger.error(f"{self.__class__.__name__} 错误: {error}")
         raise error
+
+    # ===== 可选能力声明（用于上层做能力分流） =====
+
+    def supports_json_mode(self) -> bool:
+        """
+        是否支持原生 JSON 输出模式。
+
+        默认 False；具体客户端可按能力覆盖。
+        """
+        return False
+
+    def supports_structured_output(self) -> bool:
+        """
+        是否支持结构化输出（如 schema/tool/function calling）。
+
+        默认 False；具体客户端可按能力覆盖。
+        """
+        return False
+
+    def get_capabilities(self) -> Dict[str, bool]:
+        """
+        返回当前客户端能力声明。
+        """
+        return {
+            "json_mode": self.supports_json_mode(),
+            "structured_output": self.supports_structured_output(),
+        }

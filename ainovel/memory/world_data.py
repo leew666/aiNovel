@@ -4,7 +4,7 @@ WorldData（世界观数据）模型
 管理小说的世界观设定，包括地点、组织、物品、规则等
 """
 from enum import Enum
-from typing import Dict, Any
+from typing import Dict, Any, List
 from sqlalchemy import String, Text, Integer, ForeignKey, JSON, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,6 +44,12 @@ class WorldData(Base, TimestampMixin):
     # JSON 字段：根据 data_type 存储不同的属性
     properties: Mapped[Dict[str, Any]] = mapped_column(
         JSON, default=dict, nullable=False, comment="属性（灵活存储）"
+    )
+
+    # Lorebook 触发关键词列表（nullable，向后兼容）
+    # 当章节文本中出现这些词时，该条目会被自动注入上下文
+    lorebook_keywords: Mapped[List[str]] = mapped_column(
+        JSON, default=list, nullable=True, comment="Lorebook触发关键词列表"
     )
 
     # 关系：多对一，多条世界观数据属于一部小说

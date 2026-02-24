@@ -189,3 +189,11 @@ class ClaudeClient(BaseLLMClient):
         output_cost = (output_tokens / 1000) * pricing["output"]
 
         return input_cost + output_cost
+
+    def supports_json_mode(self) -> bool:
+        """Claude 无 OpenAI 风格 json_mode 参数，默认关闭。"""
+        return False
+
+    def supports_structured_output(self) -> bool:
+        """Claude 支持结构化工具能力。"""
+        return True

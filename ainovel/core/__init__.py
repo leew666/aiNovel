@@ -6,12 +6,14 @@
 from ainovel.core.prompt_manager import PromptManager
 from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
+from ainovel.core.chapter_rewriter import ChapterRewriter
 from ainovel.core.context_compressor import ContextCompressor, CompressionLevel
 
 __all__ = [
     "PromptManager",
     "OutlineGenerator",
     "ChapterGenerator",
+    "ChapterRewriter",
     "ContextCompressor",
     "CompressionLevel",
 ]

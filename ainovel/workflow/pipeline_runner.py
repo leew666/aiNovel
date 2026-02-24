@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -14,6 +16,7 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from ainovel.db.crud import novel_crud, chapter_crud
+from ainovel.db.database import get_database
 from ainovel.db.novel import WorkflowStatus
 from ainovel.exceptions import NovelNotFoundError, InsufficientDataError
 
@@ -151,6 +154,7 @@ class PipelineRunner:
                 to_step   (int): 结束步骤，3/4/5，须 >= from_step
                 chapter_range (str|None): 章节范围，如 "1-10"
                 regenerate (bool): 是否强制重新生成已有内容
+                max_workers (int): 并行线程数，默认1（串行）
 
         Returns:
             PipelineResult.to_dict()
@@ -159,6 +163,7 @@ class PipelineRunner:
         to_step: int = plan.get("to_step", 5)
         chapter_range: Optional[str] = plan.get("chapter_range")
         regenerate: bool = plan.get("regenerate", False)
+        max_workers: int = max(1, plan.get("max_workers", 1))
 
         self._validate_plan(from_step, to_step)
 
@@ -192,40 +197,25 @@ class PipelineRunner:
             target_chapters = [all_chapters[i - 1] for i in indices]
             result.total = len(target_chapters)
 
-            for chapter in target_chapters:
-                if from_step <= 4 <= to_step:
-                    task = self._run_step4(session, chapter, regenerate)
-                    result.task_results.append(task)
-                    if task.success:
-                        result.succeeded += 1
-                    else:
-                        result.failed += 1
-                        # 步骤4失败则跳过该章节的步骤5
-                        if to_step >= 5:
-                            result.task_results.append(
-                                TaskResult(
-                                    chapter_id=chapter.id,
-                                    chapter_title=chapter.title,
-                                    step=5,
-                                    success=False,
-                                    error="步骤4失败，跳过步骤5",
-                                )
-                            )
-                            result.skipped += 1
-                        continue
+            # 收集章节 ID 和标题（避免跨线程访问 ORM 对象）
+            chapter_infos = [(c.id, c.title) for c in target_chapters]
 
-                if from_step <= 5 <= to_step:
-                    task = self._run_step5(session, chapter, regenerate)
-                    result.task_results.append(task)
-                    if task.success:
-                        result.succeeded += 1
-                    else:
-                        result.failed += 1
+            if max_workers == 1:
+                # 串行执行（原有逻辑）
+                self._run_batch_serial(
+                    session, chapter_infos, from_step, to_step, regenerate, result
+                )
+            else:
+                # 并行执行：步骤4全部完成后再并行步骤5，保证前情回顾数据可用
+                self._run_batch_parallel(
+                    chapter_infos, from_step, to_step, regenerate, max_workers, result
+                )
 
         logger.info(
             f"流水线完成 novel_id={novel_id} "
             f"步骤{from_step}-{to_step} "
-            f"成功={result.succeeded} 失败={result.failed} 跳过={result.skipped}"
+            f"成功={result.succeeded} 失败={result.failed} 跳过={result.skipped} "
+            f"并发={max_workers}"
         )
         return result.to_dict()
 
@@ -270,6 +260,171 @@ class PipelineRunner:
         except Exception as exc:
             logger.error(f"novel_id={novel_id} 步骤3失败: {exc}")
             raise
+
+    def _run_batch_serial(
+        self,
+        session: Session,
+        chapter_infos: list[tuple[int, str]],
+        from_step: int,
+        to_step: int,
+        regenerate: bool,
+        result: PipelineResult,
+    ) -> None:
+        """串行批量执行步骤4/5（原有逻辑，使用传入 session）"""
+        for chapter_id, chapter_title in chapter_infos:
+            chapter = chapter_crud.get_by_id(session, chapter_id)
+            if chapter is None:
+                continue
+
+            if from_step <= 4 <= to_step:
+                task = self._run_step4(session, chapter, regenerate)
+                result.task_results.append(task)
+                if task.success:
+                    result.succeeded += 1
+                else:
+                    result.failed += 1
+                    if to_step >= 5:
+                        result.task_results.append(
+                            TaskResult(
+                                chapter_id=chapter_id,
+                                chapter_title=chapter_title,
+                                step=5,
+                                success=False,
+                                error="步骤4失败，跳过步骤5",
+                            )
+                        )
+                        result.skipped += 1
+                    continue
+
+            if from_step <= 5 <= to_step:
+                task = self._run_step5(session, chapter, regenerate)
+                result.task_results.append(task)
+                if task.success:
+                    result.succeeded += 1
+                else:
+                    result.failed += 1
+
+    def _run_batch_parallel(
+        self,
+        chapter_infos: list[tuple[int, str]],
+        from_step: int,
+        to_step: int,
+        regenerate: bool,
+        max_workers: int,
+        result: PipelineResult,
+    ) -> None:
+        """
+        并行批量执行步骤4/5。
+
+        策略：
+        - 步骤4全部并行完成后，再并行执行步骤5。
+          这样步骤5读取前情回顾时，前一章内容已落库。
+        - 每个线程使用独立的数据库 Session，避免 SQLAlchemy Session 跨线程问题。
+        """
+        # 记录步骤4失败的章节，步骤5跳过
+        step4_failed: set[int] = set()
+        # 线程安全的结果收集锁
+        lock = threading.Lock()
+
+        def _worker_step4(chapter_id: int, chapter_title: str) -> TaskResult:
+            db = get_database()
+            session = db.get_session()
+            try:
+                chapter = chapter_crud.get_by_id(session, chapter_id)
+                if chapter is None:
+                    return TaskResult(
+                        chapter_id=chapter_id,
+                        chapter_title=chapter_title,
+                        step=4,
+                        success=False,
+                        error="章节不存在",
+                    )
+                return self._run_step4(session, chapter, regenerate)
+            finally:
+                session.close()
+
+        def _worker_step5(chapter_id: int, chapter_title: str) -> TaskResult:
+            db = get_database()
+            session = db.get_session()
+            try:
+                chapter = chapter_crud.get_by_id(session, chapter_id)
+                if chapter is None:
+                    return TaskResult(
+                        chapter_id=chapter_id,
+                        chapter_title=chapter_title,
+                        step=5,
+                        success=False,
+                        error="章节不存在",
+                    )
+                return self._run_step5(session, chapter, regenerate)
+            finally:
+                session.close()
+
+        def _collect(task: TaskResult) -> None:
+            with lock:
+                result.task_results.append(task)
+                if task.success:
+                    result.succeeded += 1
+                else:
+                    result.failed += 1
+
+        # 阶段一：并行步骤4
+        if from_step <= 4 <= to_step:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_map = {
+                    executor.submit(_worker_step4, cid, ctitle): (cid, ctitle)
+                    for cid, ctitle in chapter_infos
+                }
+                for future in as_completed(future_map):
+                    cid, ctitle = future_map[future]
+                    try:
+                        task = future.result()
+                    except Exception as exc:
+                        task = TaskResult(
+                            chapter_id=cid,
+                            chapter_title=ctitle,
+                            step=4,
+                            success=False,
+                            error=str(exc),
+                        )
+                    _collect(task)
+                    if not task.success:
+                        step4_failed.add(cid)
+
+        # 阶段二：并行步骤5（跳过步骤4失败的章节）
+        if from_step <= 5 <= to_step:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_map = {}
+                for cid, ctitle in chapter_infos:
+                    if cid in step4_failed:
+                        # 步骤4失败，直接记录跳过
+                        with lock:
+                            result.task_results.append(
+                                TaskResult(
+                                    chapter_id=cid,
+                                    chapter_title=ctitle,
+                                    step=5,
+                                    success=False,
+                                    error="步骤4失败，跳过步骤5",
+                                )
+                            )
+                            result.skipped += 1
+                        continue
+                    future_map[executor.submit(_worker_step5, cid, ctitle)] = (cid, ctitle)
+
+                for future in as_completed(future_map):
+                    cid, ctitle = future_map[future]
+                    try:
+                        task = future.result()
+                    except Exception as exc:
+                        task = TaskResult(
+                            chapter_id=cid,
+                            chapter_title=ctitle,
+                            step=5,
+                            success=False,
+                            error=str(exc),
+                        )
+                    _collect(task)
 
     def _run_step4(
         self, session: Session, chapter: Any, regenerate: bool

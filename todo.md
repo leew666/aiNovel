@@ -111,51 +111,51 @@
 
 ### 3.1 文件级改动
 
-- [ ] 新增 `ainovel/core/chapter_rewriter.py`  
+- [x] 新增 `ainovel/core/chapter_rewriter.py`  
 提供段落级改写（润色/扩写/删减/风格迁移）与整章重写能力。
 
-- [ ] 修改 `ainovel/core/prompt_manager.py`  
+- [x] 修改 `ainovel/core/prompt_manager.py`  
 新增 `REWRITE_PROMPT`、`POLISH_PROMPT`、`EXPAND_PROMPT` 模板。
 
-- [ ] 修改 `ainovel/web/schemas/workflow.py`  
+- [x] 修改 `ainovel/web/schemas/workflow.py`  
 新增 `ChapterRewriteRequest`、`ChapterRewriteResponse`。
 
-- [ ] 修改 `ainovel/web/routers/workflow.py`  
+- [x] 修改 `ainovel/web/routers/workflow.py`  
 新增 `POST /workflow/chapter/{chapter_id}/rewrite`。
 
-- [ ] 修改 `ainovel/llm/base.py`  
+- [x] 修改 `ainovel/llm/base.py`  
 补充可选能力接口（JSON 输出模式、结构化响应能力声明）。
 
-- [ ] 修改 `ainovel/llm/factory.py`  
+- [x] 修改 `ainovel/llm/factory.py`  
 增加 Provider 注册机制：`register_provider(name, client_cls)`，减少硬编码分支。
 
-- [ ] 修改 `ainovel/web/routers/settings.py`  
+- [x] 修改 `ainovel/web/routers/settings.py`  
 设置页读取可用 provider 列表时，兼容“动态注册 provider”。
 
 ### 3.2 接口级定义
 
-- [ ] Python 服务接口  
+- [x] Python 服务接口  
 `ChapterRewriter.rewrite(chapter_id: int, instruction: str, target_scope: str = "paragraph", range_start: int | None = None, range_end: int | None = None, preserve_plot: bool = True) -> dict[str, Any]`
 
-- [ ] Python 服务接口  
+- [x] Python 服务接口  
 `LLMFactory.register_provider(name: str, client_cls: type[BaseLLMClient]) -> None`
 
-- [ ] HTTP 接口  
+- [x] HTTP 接口  
 `POST /workflow/chapter/{chapter_id}/rewrite`  
 请求：`{ "instruction": "强化冲突", "target_scope": "paragraph", "range_start": 3, "range_end": 6 }`  
 响应：`{ "chapter_id": 1, "new_content": "...", "diff_summary": "...", "usage": {...} }`
 
 ### 3.3 验收标准
 
-- [ ] 支持“指定段落范围”改写，不必整章重生。  
-- [ ] 改写后保留原文版本快照，支持回滚。  
-- [ ] 新增 provider 无需改动核心业务流程代码。  
+- [x] 支持“指定段落范围”改写，不必整章重生。  
+- [x] 改写后保留原文版本快照，支持回滚。  
+- [x] 新增 provider 无需改动核心业务流程代码。  
 
 ### 3.4 测试落点
 
-- [ ] 新增 `tests/core/test_chapter_rewriter.py`  
-- [ ] 更新 `tests/llm/test_llm.py`（注册机制与兼容性）  
-- [ ] 新增 `tests/web/test_chapter_rewrite_api.py`
+- [x] 新增 `tests/core/test_chapter_rewriter.py`  
+- [x] 更新 `tests/llm/test_llm.py`（注册机制与兼容性）  
+- [x] 新增 `tests/web/test_chapter_rewrite_api.py`
 
 ---
 

@@ -18,7 +18,11 @@
       "Bash(__NEW_LINE_1bce2f6c0b3c6263__ echo \"=== playwright ===\")",
       "Bash(find:*)",
       "Read(//Users/lee/Documents/github/me/aiNovel/**)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "mcp__fetch__fetch",
+      "mcp__memory__search_nodes",
+      "mcp__memory__create_entities",
+      "mcp__memory__create_relations"
     ]
   }
 }

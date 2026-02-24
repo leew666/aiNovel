@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from ainovel.web.config import settings
+from ainovel.llm.factory import LLMFactory
 
 router = APIRouter(redirect_slashes=False)
 
@@ -23,8 +24,20 @@ _PRESET_MODELS = {
     "qwen": ["qwen-max", "qwen-plus", "qwen-turbo"],
 }
 
-# 内置提供商列表
-_BUILTIN_PROVIDERS = ["openai", "claude", "qwen"]
+_DEFAULT_BUILTIN_PROVIDERS = ["openai", "claude", "qwen"]
+
+
+def _get_builtin_providers() -> list[str]:
+    """
+    获取当前已注册提供商列表。
+
+    优先使用工厂注册表，失败时回退默认值。
+    """
+    try:
+        providers = LLMFactory.get_registered_providers()
+        return providers or _DEFAULT_BUILTIN_PROVIDERS
+    except Exception:
+        return _DEFAULT_BUILTIN_PROVIDERS
 
 
 def _read_env() -> dict[str, str]:
@@ -51,7 +64,8 @@ def _write_env(data: dict[str, str]) -> None:
 async def settings_page(request: Request):
     """显示当前 LLM 配置"""
     provider = settings.LLM_PROVIDER.lower()
-    is_custom = provider not in _BUILTIN_PROVIDERS
+    builtin_providers = _get_builtin_providers()
+    is_custom = provider not in builtin_providers
     key_map = {
         "openai": settings.OPENAI_API_KEY,
         "claude": settings.ANTHROPIC_API_KEY,
@@ -70,7 +84,7 @@ async def settings_page(request: Request):
             "model": settings.LLM_MODEL,
             "openai_api_base": settings.OPENAI_API_BASE,
             "preset_models": _PRESET_MODELS,
-            "builtin_providers": _BUILTIN_PROVIDERS,
+            "builtin_providers": builtin_providers,
             "openai_key_set": bool(settings.OPENAI_API_KEY),
             "claude_key_set": bool(settings.ANTHROPIC_API_KEY),
             "qwen_key_set": bool(settings.DASHSCOPE_API_KEY),

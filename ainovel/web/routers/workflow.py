@@ -110,7 +110,12 @@ async def step5_writing(
 ):
     """步骤5：生成章节内容"""
     try:
-        result = orch.step_5_writing(session, chapter_id, request_data.style_guide)
+        result = orch.step_5_writing(
+            session,
+            chapter_id,
+            request_data.style_guide,
+            authors_note=request_data.authors_note,
+        )
         return Step5Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -142,6 +147,51 @@ async def consistency_check(
             strict=request_data.strict,
         )
         return ConsistencyCheckResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/chapter/{chapter_id}/rewrite", response_model=ChapterRewriteResponse)
+async def rewrite_chapter(
+    chapter_id: int,
+    request_data: ChapterRewriteRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """章节局部改写/重写"""
+    try:
+        result = orch.rewrite_chapter(
+            session=session,
+            chapter_id=chapter_id,
+            instruction=request_data.instruction,
+            target_scope=request_data.target_scope,
+            range_start=request_data.range_start,
+            range_end=request_data.range_end,
+            preserve_plot=request_data.preserve_plot,
+            rewrite_mode=request_data.rewrite_mode,
+            save=request_data.save,
+        )
+        return ChapterRewriteResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/chapter/{chapter_id}/rewrite/rollback", response_model=ChapterRollbackResponse)
+async def rollback_rewrite(
+    chapter_id: int,
+    request_data: ChapterRollbackRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """章节改写回滚到历史版本"""
+    try:
+        result = orch.rollback_chapter_rewrite(
+            session=session,
+            chapter_id=chapter_id,
+            history_id=request_data.history_id,
+            save=request_data.save,
+        )
+        return ChapterRollbackResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -186,6 +236,7 @@ async def pipeline_run(
             to_step=request_data.to_step,
             chapter_range=request_data.chapter_range,
             regenerate=request_data.regenerate,
+            max_workers=request_data.max_workers,
         )
         return PipelineRunResponse(**result)
     except ValueError as e:

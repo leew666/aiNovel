@@ -85,6 +85,12 @@ class Character(Base, TimestampMixin):
         JSON, default=dict, nullable=False, comment="关系网络（角色名: 关系信息）"
     )
 
+    # Lorebook 触发关键词列表（nullable，向后兼容）
+    # 当章节文本中出现这些词时，该角色卡会被自动注入上下文
+    lorebook_keywords: Mapped[List[str]] = mapped_column(
+        JSON, default=list, nullable=True, comment="Lorebook触发关键词列表"
+    )
+
     # 关系：多对一，多个角色属于一部小说
     novel: Mapped["Novel"] = relationship("Novel")
 

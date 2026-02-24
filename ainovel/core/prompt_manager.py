@@ -224,6 +224,9 @@ class PromptManager:
 ## 写作风格要求
 {style_guide}
 
+## 作者备注（Author's Note）
+{authors_note}
+
 ## 要求
 1. 字数要求: {word_count_min}-{word_count_max}字
 2. 确保剧情与大纲一致
@@ -231,6 +234,7 @@ class PromptManager:
 4. 描写生动细腻，对话自然
 5. 保持与前文的连贯性
 6. 注意伏笔和铺垫
+7. 严格遵守作者备注中的特殊指示
 
 请直接输出章节正文内容，不要包含任何格式说明或元数据。
 """
@@ -280,6 +284,52 @@ class PromptManager:
   ]
 }}
 ```
+"""
+
+    REWRITE_PROMPT = """你是一位专业小说编辑。请根据要求改写指定文本。
+
+## 改写目标
+- 模式: {rewrite_mode}
+- 指令: {instruction}
+- 保持主线剧情不变: {preserve_plot}
+
+## 原文
+{source_content}
+
+## 约束
+1. 保留人名、核心事件和世界观设定，不引入矛盾
+2. 尽量保持章节语气和叙事视角一致
+3. 仅输出改写后的正文，不输出说明
+"""
+
+    POLISH_PROMPT = """你是一位专业小说润色编辑。请润色原文，使语言更自然、有画面感。
+
+## 润色目标
+- 指令: {instruction}
+- 保持主线剧情不变: {preserve_plot}
+
+## 原文
+{source_content}
+
+## 约束
+1. 不改变核心事件顺序和结局
+2. 优先优化句式、用词、节奏和对话自然度
+3. 仅输出润色后的正文
+"""
+
+    EXPAND_PROMPT = """你是一位网络小说扩写编辑。请在不改变主线的前提下扩写原文。
+
+## 扩写目标
+- 指令: {instruction}
+- 保持主线剧情不变: {preserve_plot}
+
+## 原文
+{source_content}
+
+## 约束
+1. 补充细节描写、情绪递进和场景动作
+2. 不新增破坏性剧情分支
+3. 仅输出扩写后的正文
 """
 
     # 步骤6：质量检查提示词模板
@@ -596,6 +646,7 @@ class PromptManager:
         character_memory_cards: List[Dict[str, Any]] | None = None,
         world_memory_cards: List[Dict[str, Any]] | None = None,
         style_guide: str = "",
+        authors_note: str = "",
         word_count_min: int = 2000,
         word_count_max: int = 3000,
     ) -> str:
@@ -615,6 +666,7 @@ class PromptManager:
             character_memory_cards: 角色记忆卡
             world_memory_cards: 世界观卡片
             style_guide: 写作风格指南
+            authors_note: 作者备注，动态注入的写作指令（参考KoboldAI Author's Note）
             word_count_min: 最小字数
             word_count_max: 最大字数
 
@@ -640,6 +692,7 @@ class PromptManager:
             ),
             previous_context=previous_context or "本章为开篇，无前情",
             style_guide=style_guide or "采用网络小说常见风格，节奏紧凑，对话生动",
+            authors_note=authors_note or "无特殊指示",
             word_count_min=word_count_min,
             word_count_max=word_count_max,
         )
@@ -672,6 +725,33 @@ class PromptManager:
             ),
             world_memory_cards=cls.format_world_memory_cards(world_memory_cards),
             strict_mode="是" if strict else "否",
+        )
+
+    @classmethod
+    def generate_rewrite_prompt(
+        cls,
+        source_content: str,
+        instruction: str,
+        rewrite_mode: str = "rewrite",
+        preserve_plot: bool = True,
+    ) -> str:
+        """
+        生成改写提示词。
+
+        rewrite_mode: rewrite | polish | expand
+        """
+        template_map = {
+            "rewrite": cls.REWRITE_PROMPT,
+            "polish": cls.POLISH_PROMPT,
+            "expand": cls.EXPAND_PROMPT,
+        }
+        mode = (rewrite_mode or "rewrite").lower().strip()
+        template = template_map.get(mode, cls.REWRITE_PROMPT)
+        return template.format(
+            rewrite_mode=mode,
+            instruction=instruction,
+            preserve_plot="是" if preserve_plot else "否",
+            source_content=source_content,
         )
 
     @classmethod

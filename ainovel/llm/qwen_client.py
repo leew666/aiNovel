@@ -177,3 +177,11 @@ class QwenClient(BaseLLMClient):
         output_cost = (output_tokens / 1000) * pricing["output"]
 
         return input_cost + output_cost
+
+    def supports_json_mode(self) -> bool:
+        """DashScope 兼容接口支持 message 格式，按保守策略不声明原生 JSON 模式。"""
+        return False
+
+    def supports_structured_output(self) -> bool:
+        """按保守策略不声明结构化输出能力。"""
+        return False

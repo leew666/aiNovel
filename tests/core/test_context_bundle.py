@@ -70,8 +70,7 @@ def test_build_context_bundle_contains_three_sections(db_session, mock_llm):
         volume_id=volume.id,
         current_order=3,
         novel_id=novel.id,
-        character_names=["张三"],
-        world_keywords=["青云宗"],
+        scan_text="张三在青云宗拜师，踏上修炼之路",
     )
 
     assert "previous_context" in bundle

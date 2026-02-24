@@ -186,3 +186,11 @@ class OpenAIClient(BaseLLMClient):
         output_cost = (output_tokens / 1000) * pricing["output"]
 
         return input_cost + output_cost
+
+    def supports_json_mode(self) -> bool:
+        """OpenAI 兼容接口通常支持 JSON 模式。"""
+        return True
+
+    def supports_structured_output(self) -> bool:
+        """OpenAI 兼容接口通常支持结构化输出能力。"""
+        return True

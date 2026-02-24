@@ -1,0 +1,26 @@
+<div class="result-box" style="display: block;">
+    <div style="margin-bottom: 8px;">
+        <strong>导入完成</strong>
+    </div>
+    <div>小说ID：{{ stats.novel_id }}</div>
+    <div>分卷ID：{{ stats.volume_id }}</div>
+    <div>章节总数：{{ stats.total }}</div>
+    <div>成功改写：{{ stats.succeeded }}</div>
+    <div>失败：{{ stats.failed }}</div>
+
+    <div style="margin-top: 10px;">
+        <a href="/novels/view/{{ stats.novel_id }}" class="btn" style="font-size: 12px; padding: 6px 12px;">查看项目详情</a>
+        <a href="/workflow/{{ stats.novel_id }}" class="btn" style="font-size: 12px; padding: 6px 12px;">进入创作流程</a>
+    </div>
+
+    {% if stats.errors %}
+    <div style="margin-top: 12px; color: #c0392b;">
+        <strong>失败详情</strong>
+        <ul style="margin-top: 6px;">
+            {% for err in stats.errors %}
+            <li>章节 {{ err.chapter_title }} (ID={{ err.chapter_id }}): {{ err.error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>

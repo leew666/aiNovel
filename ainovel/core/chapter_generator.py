@@ -36,6 +36,7 @@ class ChapterGenerator:
         self,
         chapter_id: int,
         style_guide: str = "",
+        authors_note: str = "",
         word_count_min: int = 2000,
         word_count_max: int = 3000,
         temperature: float = 0.8,
@@ -49,6 +50,7 @@ class ChapterGenerator:
         Args:
             chapter_id: 章节ID
             style_guide: 写作风格指南
+            authors_note: 作者备注，动态注入的写作指令
             word_count_min: 最小字数
             word_count_max: 最大字数
             temperature: LLM温度参数
@@ -100,8 +102,7 @@ class ChapterGenerator:
                 window_size=context_window_size,
                 token_budget=800,
                 novel_id=volume.novel_id,
-                character_names=character_names,
-                world_keywords=key_events,
+                scan_text=chapter.content,
             )
             previous_context = context_bundle.get("previous_context", "")
             character_memory_cards = context_bundle.get("character_memory_cards", [])
@@ -132,6 +133,7 @@ class ChapterGenerator:
             character_memory_cards=character_memory_cards,
             world_memory_cards=world_memory_cards,
             style_guide=style_guide,
+            authors_note=authors_note,
             word_count_min=word_count_min,
             word_count_max=word_count_max,
         )
@@ -201,6 +203,7 @@ class ChapterGenerator:
         self,
         chapter_id: int,
         style_guide: str = "",
+        authors_note: str = "",
         word_count_min: int = 2000,
         word_count_max: int = 3000,
         temperature: float = 0.8,
@@ -212,6 +215,7 @@ class ChapterGenerator:
         Args:
             chapter_id: 章节ID
             style_guide: 写作风格指南
+            authors_note: 作者备注，动态注入的写作指令
             word_count_min: 最小字数
             word_count_max: 最大字数
             temperature: LLM温度参数
@@ -223,6 +227,7 @@ class ChapterGenerator:
         result = self.generate_chapter(
             chapter_id=chapter_id,
             style_guide=style_guide,
+            authors_note=authors_note,
             word_count_min=word_count_min,
             word_count_max=word_count_max,
             temperature=temperature,

@@ -16,6 +16,7 @@ from ainovel.llm import (
     TokenLimitError,
     RateLimitError,
 )
+from ainovel.llm.base import BaseLLMClient
 
 
 class TestLLMConfig:
@@ -29,10 +30,10 @@ class TestLLMConfig:
         assert config.max_tokens == 2000
         assert config.daily_budget == 5.0
 
-    def test_invalid_provider(self):
-        """测试无效的provider"""
-        with pytest.raises(ValueError):
-            LLMConfig(provider="invalid_provider")
+    def test_custom_provider_allowed(self):
+        """测试自定义provider可被保留"""
+        config = LLMConfig(provider="invalid_provider")
+        assert config.provider == "invalid_provider"
 
     def test_temperature_range(self):
         """测试temperature范围"""
@@ -97,6 +98,13 @@ class TestOpenAIClient:
         expected = (1000 / 1000) * 0.00015 + (1000 / 1000) * 0.0006
         assert abs(cost - expected) < 0.0001
 
+    def test_capabilities(self):
+        """测试能力声明"""
+        client = OpenAIClient(api_key="test_key", model="gpt-4o-mini")
+        caps = client.get_capabilities()
+        assert caps["json_mode"] is True
+        assert caps["structured_output"] is True
+
 
 class TestClaudeClient:
     """测试Claude客户端"""
@@ -138,6 +146,13 @@ class TestClaudeClient:
         expected = (1000 / 1000) * 0.00025 + (1000 / 1000) * 0.00125
         assert abs(cost - expected) < 0.0001
 
+    def test_capabilities(self):
+        """测试能力声明"""
+        client = ClaudeClient(api_key="test_key", model="claude-3-haiku-20240307")
+        caps = client.get_capabilities()
+        assert caps["json_mode"] is False
+        assert caps["structured_output"] is True
+
 
 class TestQwenClient:
     """测试通义千问客户端"""
@@ -161,6 +176,24 @@ class TestQwenClient:
         # qwen-max: ¥0.02/1k tokens (input+output)
         expected = (1000 / 1000) * 0.02 + (1000 / 1000) * 0.02
         assert abs(cost - expected) < 0.001
+
+
+class DummyProviderClient(BaseLLMClient):
+    """用于注册测试的模拟 Provider 客户端"""
+
+    def generate(self, messages, temperature=0.7, max_tokens=2000, **kwargs):
+        return {
+            "content": "dummy",
+            "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+            "cost": 0.0,
+            "model": self.model,
+        }
+
+    def count_tokens(self, text: str) -> int:
+        return len(text)
+
+    def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        return 0.0
 
 
 class TestLLMFactory:
@@ -197,6 +230,26 @@ class TestLLMFactory:
         client2 = LLMFactory.create_client(provider="openai")
         # 应该返回同一个实例
         assert client1 is client2
+
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "test_key"})
+    def test_register_provider(self):
+        """测试动态注册 provider"""
+        LLMFactory.register_provider(
+            "dummy",
+            DummyProviderClient,
+            api_key_field="openai_api_key",
+            uses_openai_base=False,
+        )
+        LLMFactory.clear_cache()
+        client = LLMFactory.create_client(provider="dummy", model="dummy-model")
+        assert isinstance(client, DummyProviderClient)
+
+    def test_get_registered_providers(self):
+        """测试获取已注册提供商"""
+        providers = LLMFactory.get_registered_providers()
+        assert "openai" in providers
+        assert "claude" in providers
+        assert "qwen" in providers
 
 
 if __name__ == "__main__":

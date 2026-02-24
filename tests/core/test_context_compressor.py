@@ -195,8 +195,7 @@ class TestContextCompressor:
             volume_id=volume.id,
             current_order=5,
             novel_id=novel_id,
-            character_names=["张三"],
-            world_keywords=["青云宗"],
+            scan_text="张三在青云宗拜师成功",
         )
 
         assert "previous_context" in bundle

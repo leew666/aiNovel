@@ -260,3 +260,137 @@ class TestPipelineRunner:
 
         orch.step_4_detail_outline.assert_not_called()
         assert result["total"] == 6
+
+
+# ---------------------------------------------------------------------------
+# 并行执行测试
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineRunnerParallel:
+    """验证 max_workers > 1 时并行路径的正确性"""
+
+    @pytest.fixture
+    def parallel_db(self):
+        """为并行测试提供独立的内存数据库（需注册为全局实例）"""
+        from ainovel.db import init_database
+        from ainovel.db.base import Base
+        from ainovel.db.novel import Novel
+        from ainovel.db.volume import Volume
+        from ainovel.db.chapter import Chapter
+        from ainovel.memory.character import Character
+        from ainovel.memory.world_data import WorldData
+        from ainovel.db.style_profile import StyleProfile
+
+        db = init_database("sqlite:///:memory:")
+        Base.metadata.create_all(db.engine)
+        return db
+
+    @pytest.fixture
+    def parallel_novel(self, parallel_db):
+        """在并行数据库中创建测试小说"""
+        with parallel_db.session_scope() as session:
+            novel = novel_crud.create(
+                session,
+                title="并行测试小说",
+                description="测试用",
+                author="测试",
+            )
+            novel.workflow_status = WorkflowStatus.WORLD_BUILDING
+            novel.current_step = 2
+
+            for vol_order in range(1, 3):
+                volume = volume_crud.create(
+                    session,
+                    novel_id=novel.id,
+                    title=f"第{vol_order}卷",
+                    order=vol_order,
+                )
+                for ch_order in range(1, 4):
+                    chapter_crud.create(
+                        session,
+                        volume_id=volume.id,
+                        title=f"第{vol_order}卷第{ch_order}章",
+                        order=ch_order,
+                        content="",
+                    )
+            session.commit()
+            novel_id = novel.id
+
+        return novel_id, parallel_db
+
+    def test_parallel_step4_and_step5_all_success(self, parallel_novel):
+        """并行模式下步骤4+5全部成功"""
+        novel_id, db = parallel_novel
+        orch = _make_orchestrator()
+        runner = PipelineRunner(orch)
+
+        with db.session_scope() as session:
+            with patch("ainovel.workflow.pipeline_runner.get_database", return_value=db):
+                result = runner.run(
+                    session,
+                    novel_id,
+                    {"from_step": 4, "to_step": 5, "max_workers": 3},
+                )
+
+        assert result["failed"] == 0
+        assert result["succeeded"] == 12  # 6章 × 2步
+        assert result["total"] == 6
+
+    def test_parallel_step4_failure_skips_step5(self, parallel_novel):
+        """并行模式下步骤4失败的章节，步骤5应被跳过"""
+        novel_id, db = parallel_novel
+
+        with db.session_scope() as session:
+            novel = novel_crud.get_by_id(session, novel_id)
+            all_chapters = []
+            for vol in sorted(novel.volumes, key=lambda v: v.order):
+                all_chapters.extend(sorted(vol.chapters, key=lambda c: c.order))
+            fail_id = all_chapters[0].id
+
+        orch = _make_orchestrator(step4_fail_ids={fail_id})
+        runner = PipelineRunner(orch)
+
+        with db.session_scope() as session:
+            with patch("ainovel.workflow.pipeline_runner.get_database", return_value=db):
+                result = runner.run(
+                    session,
+                    novel_id,
+                    {"from_step": 4, "to_step": 5, "max_workers": 3},
+                )
+
+        assert result["failed"] == 1
+        assert result["skipped"] == 1
+        assert fail_id in result["failed_chapter_ids"]
+
+    def test_parallel_step5_only(self, parallel_novel):
+        """并行模式下仅执行步骤5"""
+        novel_id, db = parallel_novel
+        orch = _make_orchestrator()
+        runner = PipelineRunner(orch)
+
+        with db.session_scope() as session:
+            with patch("ainovel.workflow.pipeline_runner.get_database", return_value=db):
+                result = runner.run(
+                    session,
+                    novel_id,
+                    {"from_step": 5, "to_step": 5, "max_workers": 2},
+                )
+
+        orch.step_4_detail_outline.assert_not_called()
+        assert result["total"] == 6
+        assert result["failed"] == 0
+
+    def test_max_workers_1_uses_serial_path(self, db_session, novel_with_chapters):
+        """max_workers=1 时走串行路径，行为与默认一致"""
+        orch = _make_orchestrator()
+        runner = PipelineRunner(orch)
+
+        result = runner.run(
+            db_session,
+            novel_with_chapters.id,
+            {"from_step": 4, "to_step": 5, "max_workers": 1},
+        )
+
+        assert result["failed"] == 0
+        assert result["succeeded"] == 12
