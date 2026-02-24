@@ -158,6 +158,33 @@ async def delete_novel(novel_id: int, session: SessionDep):
 # ============ HTML 视图路由（使用 HTMX） ============
 
 
+@router.get("/list-html", response_class=HTMLResponse, summary="小说列表 HTML 片段")
+async def list_novels_html(request: Request, session: SessionDep):
+    """返回小说列表的 HTML 片段，供首页 HTMX 加载"""
+    novels = novel_crud.get_all(session, skip=0, limit=100)
+    return templates.TemplateResponse(
+        "partials/novel_list.html",
+        {"request": request, "novels": novels},
+    )
+
+
+@router.post("/create-html", response_class=HTMLResponse, summary="创建小说并返回 HTML 片段")
+async def create_novel_html(request: Request, session: SessionDep):
+    """接收表单数据，创建小说，返回新卡片 HTML 片段"""
+    form = await request.form()
+    novel = novel_crud.create(
+        session,
+        title=form.get("title", ""),
+        description=form.get("description") or None,
+        author=form.get("author") or "AI",
+        genre=form.get("genre") or None,
+    )
+    return templates.TemplateResponse(
+        "partials/novel_card.html",
+        {"request": request, "novel": novel},
+    )
+
+
 @router.get("/view/{novel_id}", response_class=HTMLResponse, summary="小说详情页")
 async def view_novel(novel_id: int, request: Request, session: SessionDep):
     """
@@ -169,10 +196,19 @@ async def view_novel(novel_id: int, request: Request, session: SessionDep):
     if not novel:
         raise HTTPException(status_code=404, detail="小说项目不存在")
 
+    volumes_count = len(novel.volumes)
+    chapters_count = sum(len(v.chapters) for v in novel.volumes)
+    total_words = sum(
+        c.word_count or 0 for v in novel.volumes for c in v.chapters
+    )
+
     return templates.TemplateResponse(
         "novel_detail.html",
         {
             "request": request,
             "novel": novel,
+            "volumes_count": volumes_count,
+            "chapters_count": chapters_count,
+            "total_words": total_words,
         },
     )

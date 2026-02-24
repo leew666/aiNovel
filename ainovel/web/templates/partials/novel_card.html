@@ -1,0 +1,23 @@
+<div class="novel-card" style="border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <strong style="font-size: 16px;">{{ novel.title }}</strong>
+        <span style="margin-left: 10px; color: #7f8c8d; font-size: 13px;">{{ novel.genre or '未分类' }}</span>
+        <p style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">
+            作者：{{ novel.author }} &nbsp;|&nbsp;
+            步骤：{{ novel.current_step }}/6 &nbsp;|&nbsp;
+            状态：{{ novel.workflow_status }}
+        </p>
+        {% if novel.description %}
+        <p style="color: #555; font-size: 13px; margin-top: 4px;">{{ novel.description[:80] }}{% if novel.description|length > 80 %}...{% endif %}</p>
+        {% endif %}
+    </div>
+    <div style="display: flex; gap: 8px; flex-shrink: 0;">
+        <a href="/workflow/{{ novel.id }}" class="btn" style="font-size: 13px; padding: 7px 14px;">创作流程</a>
+        <button class="btn btn-danger"
+                style="font-size: 13px; padding: 7px 14px;"
+                hx-delete="/novels/{{ novel.id }}"
+                hx-confirm="确认删除《{{ novel.title }}》？此操作不可撤销。"
+                hx-target="closest .novel-card"
+                hx-swap="outerHTML">删除</button>
+    </div>
+</div>

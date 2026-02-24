@@ -2,68 +2,277 @@
 
 {% block title %}{{ novel.title }} - 创作流程{% endblock %}
 
+{% block extra_head %}
+<style>
+.step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+.step-badge.done   { background: #27ae60; color: white; }
+.step-badge.active { background: #3498db; color: white; }
+.step-badge.todo   { background: #ecf0f1; color: #95a5a6; border: 2px solid #ddd; }
+
+.step-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.step-header h3 { margin: 0; font-size: 16px; }
+
+.result-box {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 14px;
+    margin-top: 12px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.7;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.htmx-request .spinner-inline { display: inline-block !important; }
+.spinner-inline {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid #ccc;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card">
-    <h2>📖 {{ novel.title }}</h2>
-    <p style="color: #7f8c8d; margin-bottom: 20px;">作者：{{ novel.author }} | 类型：{{ novel.genre or '未设置' }}</p>
+<div style="margin-bottom: 16px;">
+    <a href="/" style="color: #3498db; text-decoration: none;">← 返回列表</a>
+    &nbsp;&nbsp;
+    <a href="/novels/view/{{ novel.id }}" style="color: #3498db; text-decoration: none;">项目详情</a>
+</div>
 
-    <!-- 进度条 -->
-    <div style="margin-bottom: 30px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #ecf0f1; border-radius: 4px;">
-            <div class="step {% if novel.current_step >= 1 %}active{% endif %}">步骤1: 思路</div>
-            <div class="step {% if novel.current_step >= 2 %}active{% endif %}">步骤2: 世界观</div>
-            <div class="step {% if novel.current_step >= 3 %}active{% endif %}">步骤3: 大纲</div>
-            <div class="step {% if novel.current_step >= 4 %}active{% endif %}">步骤4: 细纲</div>
-            <div class="step {% if novel.current_step >= 5 %}active{% endif %}">步骤5: 创作</div>
-            <div class="step {% if novel.current_step >= 6 %}active{% endif %}">步骤6: 完成</div>
+<div class="card" style="padding: 16px 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2 style="margin-bottom: 4px;">📖 {{ novel.title }}</h2>
+            <span style="color: #7f8c8d; font-size: 13px;">作者：{{ novel.author }} | 类型：{{ novel.genre or '未设置' }}</span>
         </div>
-    </div>
-
-    <!-- 步骤1：创作思路 -->
-    <div class="card">
-        <h3>步骤1：创作思路</h3>
-        <form hx-post="/workflow/{{ novel.id }}/step1" hx-target="#step1-result">
-            <textarea name="initial_idea" placeholder="输入你的初始想法（可选，留空则使用小说描述）">{{ novel.description }}</textarea>
-            <button type="submit" class="btn">生成创作思路</button>
-        </form>
-        <div id="step1-result" style="margin-top: 20px;"></div>
-    </div>
-
-    <!-- 步骤2：世界观 -->
-    <div class="card">
-        <h3>步骤2：世界观和角色</h3>
-        <button hx-post="/workflow/{{ novel.id }}/step2"
-                hx-target="#step2-result"
-                class="btn">生成世界观</button>
-        <div id="step2-result" style="margin-top: 20px;"></div>
-    </div>
-
-    <!-- 步骤3：大纲 -->
-    <div class="card">
-        <h3>步骤3：生成大纲</h3>
-        <button hx-post="/workflow/{{ novel.id }}/step3"
-                hx-target="#step3-result"
-                class="btn">生成大纲</button>
-        <div id="step3-result" style="margin-top: 20px;"></div>
-    </div>
-
-    <!-- 步骤4-6预留 -->
-    <div class="card">
-        <p style="color: #7f8c8d;">步骤4-6功能正在开发中...</p>
+        <span style="font-size: 13px; color: #7f8c8d;">步骤 {{ novel.current_step }}/6 &nbsp;·&nbsp; {{ novel.workflow_status }}</span>
     </div>
 </div>
 
-<style>
-.step {
-    padding: 10px 20px;
-    border-radius: 4px;
-    background: white;
-    color: #95a5a6;
+<!-- 步骤1：创作思路 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 1 %}done{% elif novel.current_step == 1 %}active{% else %}todo{% endif %}">1</span>
+        <h3>创作思路</h3>
+    </div>
+    <form hx-post="/workflow/{{ novel.id }}/step1"
+          hx-target="#step1-result"
+          hx-swap="innerHTML"
+          hx-indicator="#step1-spinner">
+        <textarea name="initial_idea" placeholder="输入初始想法（留空则使用小说描述）" style="min-height: 80px;">{{ novel.description or '' }}</textarea>
+        <button type="submit" class="btn">生成创作思路
+            <span id="step1-spinner" class="spinner-inline"></span>
+        </button>
+    </form>
+    <div id="step1-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤2：世界观和角色 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 2 %}done{% elif novel.current_step == 2 %}active{% else %}todo{% endif %}">2</span>
+        <h3>世界观和角色</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">基于创作思路，自动生成世界观设定和主要角色。</p>
+    <button hx-post="/workflow/{{ novel.id }}/step2"
+            hx-target="#step2-result"
+            hx-swap="innerHTML"
+            hx-indicator="#step2-spinner"
+            class="btn">生成世界观和角色
+        <span id="step2-spinner" class="spinner-inline"></span>
+    </button>
+    <div id="step2-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤3：大纲 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 3 %}done{% elif novel.current_step == 3 %}active{% else %}todo{% endif %}">3</span>
+        <h3>生成大纲</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">生成分卷分章的整体大纲结构。</p>
+    <button hx-post="/workflow/{{ novel.id }}/step3"
+            hx-target="#step3-result"
+            hx-swap="innerHTML"
+            hx-indicator="#step3-spinner"
+            class="btn">生成大纲
+        <span id="step3-spinner" class="spinner-inline"></span>
+    </button>
+    <div id="step3-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤4：批量细纲 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 4 %}done{% elif novel.current_step == 4 %}active{% else %}todo{% endif %}">4</span>
+        <h3>批量生成细纲</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">为所有章节批量生成详细细纲（场景、冲突、节奏）。</p>
+    <button hx-post="/workflow/{{ novel.id }}/step4/batch"
+            hx-target="#step4-result"
+            hx-swap="innerHTML"
+            hx-indicator="#step4-spinner"
+            class="btn">批量生成细纲
+        <span id="step4-spinner" class="spinner-inline"></span>
+    </button>
+    <div id="step4-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤5：章节创作 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 5 %}done{% elif novel.current_step == 5 %}active{% else %}todo{% endif %}">5</span>
+        <h3>章节创作</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">输入章节 ID 生成正文内容。可选填写风格指南覆盖默认文风。</p>
+    <form hx-post="/workflow/chapter/1/step5"
+          hx-target="#step5-result"
+          hx-swap="innerHTML"
+          hx-indicator="#step5-spinner"
+          id="step5-form"
+          onsubmit="updateStep5Action(this)">
+        <div style="display: flex; gap: 10px; margin-bottom: 0;">
+            <input type="number" id="step5-chapter-id" name="_chapter_id" placeholder="章节 ID" min="1" style="width: 140px; margin-bottom: 15px;" required>
+            <input type="text" name="style_guide" placeholder="风格指南（可选，如：金庸武侠风）" style="flex: 1; margin-bottom: 15px;">
+        </div>
+        <button type="submit" class="btn">生成章节内容
+            <span id="step5-spinner" class="spinner-inline"></span>
+        </button>
+    </form>
+    <div id="step5-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤6：质量检查 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step >= 6 %}done{% else %}todo{% endif %}">6</span>
+        <h3>质量检查</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">对已生成章节进行质量评估，或批量检查所有章节。</p>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <form style="display: flex; gap: 8px; align-items: flex-end;"
+              hx-post="/workflow/chapter/1/step6"
+              hx-target="#step6-result"
+              hx-swap="innerHTML"
+              hx-indicator="#step6-spinner"
+              onsubmit="updateStep6Action(this)">
+            <input type="number" id="step6-chapter-id" name="_chapter_id" placeholder="章节 ID" min="1" style="width: 140px; margin-bottom: 0;" required>
+            <button type="submit" class="btn" style="white-space: nowrap;">检查单章</button>
+        </form>
+        <button hx-post="/workflow/{{ novel.id }}/step6/batch"
+                hx-target="#step6-result"
+                hx-swap="innerHTML"
+                hx-indicator="#step6-spinner"
+                class="btn btn-success">批量检查所有章节
+            <span id="step6-spinner" class="spinner-inline"></span>
+        </button>
+    </div>
+    <div id="step6-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 文风学习 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge active" style="background: #9b59b6;">✦</span>
+        <h3>文风学习</h3>
+    </div>
+    <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">上传参考文本，AI 提取写作风格并保存为档案，后续章节生成自动应用。</p>
+
+    <!-- 学习文风 -->
+    <form hx-post="/workflow/{{ novel.id }}/style/learn"
+          hx-target="#style-result"
+          hx-swap="innerHTML"
+          hx-indicator="#style-spinner"
+          style="margin-bottom: 16px;">
+        <input type="text" name="name" placeholder="档案名称（如：金庸武侠风）" required>
+        <textarea name="source_text" placeholder="粘贴参考文本（建议500字以上）" style="min-height: 120px;" required></textarea>
+        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-size: 13px; cursor: pointer;">
+            <input type="checkbox" name="set_active" value="true" checked style="width: auto; margin: 0;">
+            学习后立即激活此档案
+        </label>
+        <button type="submit" class="btn" style="background: #9b59b6;">分析并保存文风
+            <span id="style-spinner" class="spinner-inline"></span>
+        </button>
+    </form>
+
+    <!-- 查看档案列表 -->
+    <button hx-get="/workflow/{{ novel.id }}/style/profiles"
+            hx-target="#style-result"
+            hx-swap="innerHTML"
+            class="btn" style="background: #7f8c8d; font-size: 13px;">查看已有档案</button>
+
+    <div id="style-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 标记完成 -->
+<div class="card" style="text-align: center; padding: 24px;">
+    <p style="color: #7f8c8d; margin-bottom: 16px;">所有步骤完成后，标记小说创作完成。</p>
+    <button hx-post="/workflow/{{ novel.id }}/complete"
+            hx-target="#complete-result"
+            hx-swap="innerHTML"
+            hx-confirm="确认标记《{{ novel.title }}》创作完成？"
+            class="btn btn-success">标记创作完成</button>
+    <div id="complete-result" style="margin-top: 12px;"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* 动态更新 step5 的 action URL */
+function updateStep5Action(form) {
+    const id = document.getElementById('step5-chapter-id').value;
+    form.setAttribute('hx-post', `/workflow/chapter/${id}/step5`);
+    htmx.process(form);
 }
-.step.active {
-    background: #3498db;
-    color: white;
-    font-weight: bold;
+
+/* 动态更新 step6 单章的 action URL */
+function updateStep6Action(form) {
+    const id = document.getElementById('step6-chapter-id').value;
+    form.setAttribute('hx-post', `/workflow/chapter/${id}/step6`);
+    htmx.process(form);
 }
-</style>
+
+/* 有结果时自动显示 result-box */
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const target = evt.detail.target;
+    if (target && target.classList.contains('result-box')) {
+        if (target.innerHTML.trim()) {
+            target.style.display = 'block';
+        }
+    }
+});
+
+/* 将 JSON 响应格式化显示 */
+document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    const ct = evt.detail.xhr.getResponseHeader('content-type') || '';
+    if (ct.includes('application/json')) {
+        try {
+            const json = JSON.parse(evt.detail.serverResponse);
+            evt.detail.serverResponse = '<pre>' + JSON.stringify(json, null, 2) + '</pre>';
+        } catch(e) {}
+    }
+});
+</script>
 {% endblock %}

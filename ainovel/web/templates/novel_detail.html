@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - 项目详情{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/" style="color: #3498db; text-decoration: none;">← 返回列表</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h2>📖 {{ novel.title }}</h2>
+            <p style="color: #7f8c8d; margin-top: 6px;">
+                作者：{{ novel.author }} &nbsp;|&nbsp;
+                类型：{{ novel.genre or '未设置' }} &nbsp;|&nbsp;
+                创建：{{ novel.created_at.strftime('%Y-%m-%d') }}
+            </p>
+            {% if novel.description %}
+            <p style="margin-top: 10px; color: #555;">{{ novel.description }}</p>
+            {% endif %}
+        </div>
+        <a href="/workflow/{{ novel.id }}" class="btn btn-success">进入创作流程</a>
+    </div>
+</div>
+
+<!-- 统计信息 -->
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+    <div class="card" style="text-align: center; padding: 16px;">
+        <div style="font-size: 28px; font-weight: bold; color: #3498db;">{{ volumes_count }}</div>
+        <div style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">卷数</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 16px;">
+        <div style="font-size: 28px; font-weight: bold; color: #27ae60;">{{ chapters_count }}</div>
+        <div style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">章节数</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 16px;">
+        <div style="font-size: 28px; font-weight: bold; color: #e67e22;">{{ total_words }}</div>
+        <div style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">总字数</div>
+    </div>
+</div>
+
+<!-- 工作流进度 -->
+<div class="card">
+    <h3 style="margin-bottom: 16px;">创作进度</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #ecf0f1; border-radius: 4px;">
+        {% set steps = [('1','思路'), ('2','世界观'), ('3','大纲'), ('4','细纲'), ('5','创作'), ('6','质检')] %}
+        {% for num, label in steps %}
+        <div style="text-align: center;">
+            <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px;
+                {% if novel.current_step >= num|int %}background: #3498db; color: white;{% else %}background: white; color: #95a5a6; border: 2px solid #ddd;{% endif %}
+                font-weight: bold; font-size: 14px;">{{ num }}</div>
+            <div style="font-size: 12px; color: {% if novel.current_step >= num|int %}#2c3e50{% else %}#95a5a6{% endif %};">{{ label }}</div>
+        </div>
+        {% if not loop.last %}
+        <div style="flex: 1; height: 2px; background: {% if novel.current_step > loop.index %}#3498db{% else %}#ddd{% endif %}; margin: 0 4px; margin-bottom: 20px;"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    <div style="margin-top: 16px; text-align: center;">
+        <span style="color: #7f8c8d; font-size: 13px;">当前状态：{{ novel.workflow_status }}</span>
+        &nbsp;&nbsp;
+        <a href="/workflow/{{ novel.id }}" class="btn" style="font-size: 13px; padding: 7px 16px;">继续创作</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% if novels %}
+    {% for novel in novels %}
+    {% include "partials/novel_card.html" %}
+    {% endfor %}
+{% else %}
+<div style="text-align: center; padding: 40px; color: #7f8c8d;">
+    <p style="font-size: 16px;">还没有小说项目</p>
+    <p style="font-size: 13px; margin-top: 8px;">点击「创建新项目」开始你的创作之旅</p>
+</div>
+{% endif %}

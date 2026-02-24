@@ -13,7 +13,7 @@
     <!-- 创建项目表单（默认隐藏） -->
     <div id="create-form" style="display: none; margin-bottom: 30px; padding: 20px; background: #ecf0f1; border-radius: 4px;">
         <h3>创建新项目</h3>
-        <form hx-post="/novels/" hx-target="#novels-list" hx-swap="beforeend">
+        <form hx-post="/novels/create-html" hx-target="#novels-list" hx-swap="beforeend" hx-on::after-request="hideCreateForm()">
             <input type="text" name="title" placeholder="小说标题" required>
             <textarea name="description" placeholder="简介或初始想法"></textarea>
             <input type="text" name="author" placeholder="作者（默认：AI）" value="AI">
@@ -26,7 +26,7 @@
 
     <!-- 小说列表 -->
     <div id="novels-list"
-         hx-get="/novels/"
+         hx-get="/novels/list-html"
          hx-trigger="load"
          hx-indicator=".loading">
         <div class="loading">
