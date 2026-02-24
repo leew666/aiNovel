@@ -53,6 +53,7 @@ def get_llm_client() -> BaseLLMClient:
                 provider=settings.LLM_PROVIDER.lower(),
                 model=settings.LLM_MODEL,
                 openai_api_key=settings.OPENAI_API_KEY,
+                openai_api_base=settings.OPENAI_API_BASE,
                 anthropic_api_key=settings.ANTHROPIC_API_KEY,
                 dashscope_api_key=settings.DASHSCOPE_API_KEY,
             )

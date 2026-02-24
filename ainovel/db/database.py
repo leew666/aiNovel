@@ -5,7 +5,7 @@
 """
 from contextlib import contextmanager
 from typing import Generator
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import create_engine, Engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from loguru import logger
@@ -57,6 +57,7 @@ class Database:
         from ainovel.db.base import Base
 
         Base.metadata.create_all(bind=self._engine)
+        self._apply_sqlite_legacy_migrations()
         logger.info("所有数据表已创建")
 
     def drop_all_tables(self) -> None:
@@ -73,6 +74,65 @@ class Database:
         注意：调用方负责关闭 Session，建议使用 session_scope 上下文管理器
         """
         return self._session_factory()
+
+    def _apply_sqlite_legacy_migrations(self) -> None:
+        """
+        对历史 SQLite 数据库做轻量补列，避免旧库与新模型不兼容。
+
+        说明：
+        - 只在 SQLite 下执行。
+        - 仅在列缺失时执行 ALTER TABLE ADD COLUMN。
+        - 不做删除/重命名等破坏性变更。
+        """
+        if not self.database_url.startswith("sqlite"):
+            return
+
+        migration_plan: dict[str, list[tuple[str, str]]] = {
+            "novels": [
+                ("author", "VARCHAR(100)"),
+                ("genre", "VARCHAR(50)"),
+                ("status", "VARCHAR(20) DEFAULT 'draft'"),
+                ("global_config", "TEXT"),
+                ("workflow_status", "VARCHAR(50) DEFAULT 'created'"),
+                ("current_step", "INTEGER DEFAULT 0"),
+                ("planning_content", "TEXT"),
+            ],
+            "volumes": [
+                ("description", "TEXT"),
+                ("volume_config", "TEXT"),
+            ],
+            "chapters": [
+                ("summary", "TEXT"),
+                ("key_events", "TEXT"),
+                ("characters_involved", "TEXT"),
+                ("detail_outline", "TEXT"),
+                ("quality_report", "TEXT"),
+            ],
+        }
+
+        inspector = inspect(self._engine)
+        existing_tables = set(inspector.get_table_names())
+
+        with self._engine.begin() as conn:
+            for table_name, columns in migration_plan.items():
+                if table_name not in existing_tables:
+                    continue
+
+                existing_columns = {
+                    col["name"] for col in inspect(conn).get_columns(table_name)
+                }
+                for column_name, column_def in columns:
+                    if column_name in existing_columns:
+                        continue
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE {table_name} "
+                            f"ADD COLUMN {column_name} {column_def}"
+                        )
+                    )
+                    logger.warning(
+                        f"检测到旧版数据库，已补充列: {table_name}.{column_name}"
+                    )
 
     @contextmanager
     def session_scope(self) -> Generator[Session, None, None]:

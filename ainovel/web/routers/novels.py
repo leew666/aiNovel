@@ -72,7 +72,7 @@ async def create_novel(novel_data: NovelCreate, session: SessionDep):
     return NovelResponse.model_validate(created_novel)
 
 
-@router.get("/{novel_id}", response_model=NovelDetailResponse, summary="获取小说详情")
+@router.get("/{novel_id:int}", response_model=NovelDetailResponse, summary="获取小说详情")
 async def get_novel(novel_id: int, session: SessionDep):
     """
     获取指定小说项目的详细信息
@@ -109,7 +109,7 @@ async def get_novel(novel_id: int, session: SessionDep):
     )
 
 
-@router.put("/{novel_id}", response_model=NovelResponse, summary="更新小说项目")
+@router.put("/{novel_id:int}", response_model=NovelResponse, summary="更新小说项目")
 async def update_novel(novel_id: int, novel_data: NovelUpdate, session: SessionDep):
     """
     更新小说项目信息
@@ -136,7 +136,7 @@ async def update_novel(novel_id: int, novel_data: NovelUpdate, session: SessionD
     return NovelResponse.model_validate(updated_novel)
 
 
-@router.delete("/{novel_id}", status_code=204, summary="删除小说项目")
+@router.delete("/{novel_id:int}", status_code=204, summary="删除小说项目")
 async def delete_novel(novel_id: int, session: SessionDep):
     """
     删除小说项目（级联删除所有关联数据）

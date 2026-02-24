@@ -70,17 +70,23 @@ async def shutdown_event():
 
 @app.get("/", response_class=HTMLResponse, summary="首页")
 async def index(request: Request):
-    """
-    首页 - 小说项目列表
-
-    显示所有小说项目，支持创建新项目
-    """
+    """首页 - 小说项目列表"""
+    configured_provider = settings.LLM_PROVIDER
+    key_map = {
+        "openai": settings.OPENAI_API_KEY,
+        "claude": settings.ANTHROPIC_API_KEY,
+        "qwen": settings.DASHSCOPE_API_KEY,
+    }
+    api_key_set = bool(key_map.get(configured_provider.lower()))
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "app_name": settings.APP_NAME,
             "version": settings.APP_VERSION,
+            "llm_provider": configured_provider,
+            "llm_model": settings.LLM_MODEL,
+            "api_key_set": api_key_set,
         },
     )
 
@@ -103,12 +109,12 @@ async def health_check():
 
 from ainovel.web.routers import novels, workflow
 from ainovel.web.routers import style
+from ainovel.web.routers import settings as settings_router
 
 app.include_router(novels.router, prefix="/novels", tags=["小说项目"])
 app.include_router(workflow.router, prefix="/workflow", tags=["创作流程"])
 app.include_router(style.router, prefix="/workflow", tags=["文风学习"])
-# app.include_router(characters.router, prefix="/characters", tags=["角色管理"])  # 阶段2
-# app.include_router(world.router, prefix="/world", tags=["世界观管理"])  # 阶段2
+app.include_router(settings_router.router, prefix="/settings", tags=["系统配置"])
 
 
 # ============ 错误处理 ============

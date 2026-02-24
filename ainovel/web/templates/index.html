@@ -3,6 +3,18 @@
 {% block title %}首页 - AI小说创作系统{% endblock %}
 
 {% block content %}
+{% if not api_key_set %}
+<div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-size: 14px; color: #856404;">⚠️ 当前提供商 <strong>{{ llm_provider }}</strong> 的 API Key 未配置，工作流步骤将无法执行。</span>
+    <a href="/settings/" class="btn" style="font-size: 13px; padding: 6px 14px; background: #e6a817;">去配置</a>
+</div>
+{% else %}
+<div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; padding: 10px 18px; margin-bottom: 20px; font-size: 13px; color: #155724;">
+    ✓ 当前模型：<strong>{{ llm_provider }}</strong> / <strong>{{ llm_model }}</strong>
+    &nbsp;&nbsp;<a href="/settings/" style="color: #155724; font-size: 12px;">修改</a>
+</div>
+{% endif %}
+
 <div class="card">
     <h2>📚 我的小说项目</h2>
 

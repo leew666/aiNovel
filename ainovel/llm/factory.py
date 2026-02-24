@@ -77,11 +77,8 @@ class LLMConfig(BaseModel):
     @field_validator("provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        """验证provider"""
-        allowed = ["openai", "claude", "qwen"]
-        if v not in allowed:
-            raise ValueError(f"provider必须是{allowed}之一")
-        return v
+        """验证provider，内置三种，其余视为 OpenAI 兼容自定义提供商"""
+        return v.lower().strip()
 
     @classmethod
     def from_env(cls, **kwargs) -> "LLMConfig":
@@ -197,7 +194,14 @@ class LLMFactory:
             )
 
         else:
-            raise LLMError(f"不支持的LLM提供商: {config.provider}")
+            # 自定义 provider：使用 OpenAI 兼容接口
+            logger.info(f"自定义提供商 '{config.provider}'，使用 OpenAI 兼容接口: {config.openai_api_base}")
+            client = OpenAIClient(
+                api_key=config.openai_api_key,
+                model=config.model,
+                api_base=config.openai_api_base,
+                timeout=config.timeout,
+            )
 
         # 缓存客户端
         cls._clients[cache_key] = client
@@ -264,10 +268,10 @@ class LLMFactory:
 
     @staticmethod
     def _validate_api_key(config: LLMConfig) -> None:
-        """根据提供商校验 API Key。"""
-        if config.provider == "openai" and not config.openai_api_key:
-            raise APIKeyError("OpenAI API密钥未配置")
+        """根据提供商校验 API Key。自定义提供商使用 openai_api_key。"""
         if config.provider == "claude" and not config.anthropic_api_key:
             raise APIKeyError("Anthropic API密钥未配置")
         if config.provider == "qwen" and not config.dashscope_api_key:
             raise APIKeyError("DashScope API密钥未配置")
+        if config.provider not in ("claude", "qwen") and not config.openai_api_key:
+            raise APIKeyError(f"{config.provider} API密钥未配置")

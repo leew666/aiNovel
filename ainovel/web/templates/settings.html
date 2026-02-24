@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}系统配置 - AI小说创作系统{% endblock %}
+
+{% block extra_head %}
+<style>
+.config-section { margin-bottom: 24px; }
+.config-section h3 {
+    font-size: 14px; font-weight: 600; color: #2c3e50;
+    margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;
+}
+.provider-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.provider-tab {
+    padding: 7px 18px; border-radius: 4px; border: 2px solid #ddd;
+    cursor: pointer; font-size: 13px; background: white; color: #555;
+    transition: border-color 0.15s, background 0.15s;
+}
+.provider-tab.selected { border-color: #3498db; background: #3498db; color: white; font-weight: 600; }
+.provider-tab.custom-tab.selected { border-color: #9b59b6; background: #9b59b6; }
+.key-wrap { position: relative; margin-bottom: 15px; }
+.key-wrap input { padding-right: 56px; margin-bottom: 0; }
+.key-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: #3498db; cursor: pointer; background: none; border: none; padding: 0;
+}
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.status-dot.ok { background: #27ae60; }
+.status-dot.missing { background: #e74c3c; }
+.field-label { font-size: 13px; color: #555; display: block; margin-bottom: 5px; }
+.model-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.model-row select { margin-bottom: 0; flex: 1; }
+.fetch-btn {
+    padding: 10px 14px; background: #ecf0f1; border: 1px solid #ddd;
+    border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap; color: #2c3e50;
+}
+.fetch-btn:hover { background: #dfe6e9; }
+.hint { font-size: 12px; color: #95a5a6; margin-top: -10px; margin-bottom: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/" style="color: #3498db; text-decoration: none;">← 返回首页</a>
+</div>
+
+<div class="card">
+    <h2>⚙️ 系统配置</h2>
+    <p style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">配置保存到 .env 文件，重启服务后生效。</p>
+</div>
+
+<form hx-post="/settings/save" hx-target="#save-result" hx-swap="innerHTML">
+    <input type="hidden" name="provider" id="provider-input" value="{{ provider }}">
+    <!-- 自定义 provider 名称（仅 custom 模式使用） -->
+    <input type="hidden" name="custom_provider" id="custom-provider-input" value="">
+
+    <!-- 提供商选择 -->
+    <div class="card config-section">
+        <h3>大模型提供商</h3>
+        <div class="provider-tabs">
+            <button type="button" class="provider-tab {% if provider == 'openai' %}selected{% endif %}"
+                    onclick="selectProvider('openai', this)">OpenAI</button>
+            <button type="button" class="provider-tab {% if provider == 'claude' %}selected{% endif %}"
+                    onclick="selectProvider('claude', this)">Claude</button>
+            <button type="button" class="provider-tab {% if provider == 'qwen' %}selected{% endif %}"
+                    onclick="selectProvider('qwen', this)">通义千问</button>
+            <button type="button" class="provider-tab custom-tab {% if is_custom %}selected{% endif %}"
+                    onclick="selectProvider('custom', this)">+ 自定义</button>
+        </div>
+
+        <!-- 自定义 provider 名称输入 -->
+        <div id="custom-name-row" style="{% if not is_custom %}display:none;{% endif %}margin-bottom: 0;">
+            <label class="field-label">自定义提供商名称（如 deepseek、ollama、groq）</label>
+            <input type="text" id="custom-provider-name"
+                   value="{% if is_custom %}{{ provider }}{% endif %}"
+                   placeholder="自定义名称（字母/数字/连字符）"
+                   oninput="document.getElementById('custom-provider-input').value=this.value">
+        </div>
+    </div>
+
+    <!-- API 端点配置（openai / 自定义共用） -->
+    <div class="card config-section" id="section-endpoint"
+         {% if provider not in ['openai', 'custom'] and not is_custom %}style="display:none"{% endif %}>
+        <h3 id="endpoint-title">
+            {% if is_custom %}{{ provider }} 接口配置{% else %}OpenAI 接口配置{% endif %}
+        </h3>
+
+        <label class="field-label">API Base URL</label>
+        <input type="text" name="openai_api_base" id="openai-api-base"
+               value="{{ openai_api_base }}"
+               placeholder="https://api.openai.com/v1">
+
+        <label class="field-label">
+            <span class="status-dot {% if openai_key_set %}ok{% else %}missing{% endif %}"></span>
+            API Key
+        </label>
+        <div class="key-wrap">
+            <input type="password" name="openai_key" id="openai-key"
+                   placeholder="{% if openai_key_set %}已配置（留空保持不变）{% else %}sk-...{% endif %}">
+            <button type="button" class="key-toggle" onclick="toggleKey('openai-key',this)">显示</button>
+        </div>
+
+        <label class="field-label">模型</label>
+        <div class="model-row">
+            <select id="openai-model-select" onchange="if(this.value) document.getElementById('openai-model-input').value=this.value">
+                <option value="">-- 从列表选择 --</option>
+                {% for m in preset_models.openai %}
+                <option value="{{ m }}"
+                    {% if m == model and (provider == 'openai' or is_custom) %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="fetch-btn" onclick="fetchModels('openai')">查询可用模型</button>
+        </div>
+        <input type="text" name="model" id="openai-model-input"
+               value="{% if provider == 'openai' or is_custom %}{{ model }}{% endif %}"
+               placeholder="或直接输入模型名，如 deepseek-chat">
+        <p class="hint">下拉选择后自动填入，也可手动输入任意模型名。</p>
+        <div id="openai-fetch-result" style="font-size: 12px; color: #7f8c8d;"></div>
+    </div>
+
+    <!-- Claude 配置 -->
+    <div class="card config-section" id="section-claude"
+         {% if provider != 'claude' %}style="display:none"{% endif %}>
+        <h3>Claude (Anthropic) 配置</h3>
+
+        <label class="field-label">
+            <span class="status-dot {% if claude_key_set %}ok{% else %}missing{% endif %}"></span>
+            Anthropic API Key
+        </label>
+        <div class="key-wrap">
+            <input type="password" name="claude_key" id="claude-key"
+                   placeholder="{% if claude_key_set %}已配置（留空保持不变）{% else %}sk-ant-...{% endif %}">
+            <button type="button" class="key-toggle" onclick="toggleKey('claude-key',this)">显示</button>
+        </div>
+
+        <label class="field-label">模型</label>
+        <div class="model-row">
+            <select id="claude-model-select"
+                    onchange="if(this.value) document.getElementById('claude-model-input').value=this.value">
+                <option value="">-- 从列表选择 --</option>
+                {% for m in preset_models.claude %}
+                <option value="{{ m }}" {% if m == model and provider == 'claude' %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="text" name="model" id="claude-model-input"
+               value="{% if provider == 'claude' %}{{ model }}{% endif %}"
+               placeholder="或手动输入模型名">
+        <p class="hint">选择预设或手动输入最新模型名。</p>
+    </div>
+
+    <!-- 通义千问配置 -->
+    <div class="card config-section" id="section-qwen"
+         {% if provider != 'qwen' %}style="display:none"{% endif %}>
+        <h3>通义千问配置</h3>
+
+        <label class="field-label">API Base URL（支持自定义兼容端点）</label>
+        <input type="text" name="openai_api_base" id="qwen-api-base"
+               value="{% if provider == 'qwen' %}{{ openai_api_base }}{% else %}https://dashscope.aliyuncs.com/compatible-mode/v1{% endif %}"
+               placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1">
+
+        <label class="field-label">
+            <span class="status-dot {% if qwen_key_set %}ok{% else %}missing{% endif %}"></span>
+            DashScope API Key
+        </label>
+        <div class="key-wrap">
+            <input type="password" name="qwen_key" id="qwen-key"
+                   placeholder="{% if qwen_key_set %}已配置（留空保持不变）{% else %}sk-...{% endif %}">
+            <button type="button" class="key-toggle" onclick="toggleKey('qwen-key',this)">显示</button>
+        </div>
+
+        <label class="field-label">模型</label>
+        <div class="model-row">
+            <select id="qwen-model-select"
+                    onchange="if(this.value) document.getElementById('qwen-model-input').value=this.value">
+                <option value="">-- 从列表选择 --</option>
+                {% for m in preset_models.qwen %}
+                <option value="{{ m }}" {% if m == model and provider == 'qwen' %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="fetch-btn" onclick="fetchModels('qwen')">查询可用模型</button>
+        </div>
+        <input type="text" name="model" id="qwen-model-input"
+               value="{% if provider == 'qwen' %}{{ model }}{% endif %}"
+               placeholder="或手动输入模型名，如 qwen-max-latest">
+        <p class="hint">选择预设或手动输入最新模型名。</p>
+        <div id="qwen-fetch-result" style="font-size: 12px; color: #7f8c8d;"></div>
+    </div>
+
+    <!-- 其他配置 -->
+    <div class="card config-section">
+        <h3>其他配置</h3>
+        <label class="field-label">每日预算（美元/人民币）</label>
+        <input type="number" name="daily_budget" value="{{ daily_budget }}" min="0" step="0.1" style="max-width: 200px;">
+        <label class="field-label">数据库路径（只读）</label>
+        <input type="text" value="{{ database_url }}" disabled style="background: #f5f5f5; color: #999; margin-bottom: 0;">
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 40px;">
+        <button type="submit" class="btn btn-success">保存配置</button>
+        <div id="save-result" style="font-size: 13px;"></div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function selectProvider(p, btn) {
+    document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('selected'));
+    btn.classList.add('selected');
+
+    // 显示/隐藏各 section
+    document.getElementById('section-endpoint').style.display =
+        (p === 'openai' || p === 'custom') ? 'block' : 'none';
+    document.getElementById('section-claude').style.display = p === 'claude' ? 'block' : 'none';
+    document.getElementById('section-qwen').style.display = p === 'qwen' ? 'block' : 'none';
+    document.getElementById('custom-name-row').style.display = p === 'custom' ? 'block' : 'none';
+
+    document.getElementById('provider-input').value = p;
+
+    // 更新端点标题
+    const title = document.getElementById('endpoint-title');
+    if (title) title.textContent = p === 'custom' ? '自定义接口配置' : 'OpenAI 接口配置';
+}
+
+function toggleKey(id, btn) {
+    const inp = document.getElementById(id);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    btn.textContent = inp.type === 'password' ? '显示' : '隐藏';
+}
+
+async function fetchModels(scope) {
+    const baseId = scope === 'qwen' ? 'qwen-api-base' : 'openai-api-base';
+    const keyId = scope === 'qwen' ? 'qwen-key' : 'openai-key';
+    const selId = scope === 'qwen' ? 'qwen-model-select' : 'openai-model-select';
+    const resultId = scope === 'qwen' ? 'qwen-fetch-result' : 'openai-fetch-result';
+
+    const base = document.getElementById(baseId).value.trim();
+    const key = document.getElementById(keyId).value.trim();
+    const resultEl = document.getElementById(resultId);
+    const sel = document.getElementById(selId);
+
+    if (!base) { resultEl.textContent = '请先填写 API Base URL'; return; }
+    resultEl.textContent = '查询中...';
+
+    try {
+        const params = new URLSearchParams({ api_base: base });
+        if (key) params.append('api_key', key);
+        const resp = await fetch('/settings/models?' + params.toString());
+        const data = await resp.json();
+        if (data.error) { resultEl.textContent = '查询失败：' + data.error; return; }
+
+        sel.innerHTML = '<option value="">-- 从列表选择 --</option>';
+        data.models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            sel.appendChild(opt);
+        });
+        resultEl.textContent = `已加载 ${data.models.length} 个模型`;
+    } catch(e) {
+        resultEl.textContent = '请求失败：' + e.message;
+    }
+}
+
+// 提交前确保只有当前 provider 的 model input 名称为 "model"
+document.querySelector('form').addEventListener('submit', function() {
+    const p = document.getElementById('provider-input').value;
+
+    // 先把所有 model input 改名，避免重复提交
+    ['openai-model-input', 'claude-model-input', 'qwen-model-input'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.name = '_model_unused';
+    });
+    ['openai-model-select', 'claude-model-select', 'qwen-model-select'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.name = '_sel_unused';
+    });
+
+    // 只激活当前 provider 的 text input
+    if (p === 'claude') {
+        document.getElementById('claude-model-input').name = 'model';
+    } else if (p === 'qwen') {
+        document.getElementById('qwen-model-input').name = 'model';
+        // qwen 的 api_base 覆盖 openai 的
+        const qb = document.getElementById('qwen-api-base');
+        if (qb) qb.name = 'openai_api_base';
+        const ob = document.getElementById('openai-api-base');
+        if (ob) ob.name = '_base_unused';
+    } else {
+        // openai 或 custom
+        document.getElementById('openai-model-input').name = 'model';
+    }
+});
+</script>
+{% endblock %}

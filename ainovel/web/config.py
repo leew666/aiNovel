@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # LLM 配置
     LLM_PROVIDER: str = Field(default="openai", description="LLM提供商: openai/claude/qwen")
     LLM_MODEL: str = Field(default="gpt-4o-mini", description="默认模型")
+    OPENAI_API_BASE: str = Field(
+        default="https://api.openai.com/v1",
+        description="OpenAI 兼容 API 地址（支持自定义端点）",
+    )
 
     # API 密钥（从环境变量读取）
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API密钥")
