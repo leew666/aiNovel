@@ -7,6 +7,8 @@ import json
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 
+from ainovel.workflow.pipeline_runner import PipelineRunner
+
 from ainovel.llm.base import BaseLLMClient
 from ainovel.db.novel import WorkflowStatus
 from ainovel.db.crud import novel_crud
@@ -14,6 +16,7 @@ from ainovel.workflow.generators.planning_generator import PlanningGenerator
 from ainovel.workflow.generators.world_building_generator import WorldBuildingGenerator
 from ainovel.workflow.generators.detail_outline_generator import DetailOutlineGenerator
 from ainovel.workflow.generators.quality_check_generator import QualityCheckGenerator
+from ainovel.workflow.generators.consistency_generator import ConsistencyGenerator
 from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
 from ainovel.memory.character_db import CharacterDatabase
@@ -54,6 +57,7 @@ class WorkflowOrchestrator:
         self.world_building_gen = WorldBuildingGenerator(llm_client, character_db, world_db)
         self.detail_outline_gen = DetailOutlineGenerator(llm_client)
         self.quality_check_gen = QualityCheckGenerator(llm_client)
+        self.consistency_gen = ConsistencyGenerator(llm_client)
         self.style_analyzer = StyleAnalyzer(llm_client)
 
     def get_workflow_status(self, session: Session, novel_id: int) -> Dict[str, Any]:
@@ -444,6 +448,41 @@ class WorkflowOrchestrator:
         result["workflow_status"] = novel.workflow_status.value
         return result
 
+    def check_chapter_consistency(
+        self,
+        session: Session,
+        chapter_id: int,
+        content_override: Optional[str] = None,
+        strict: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        检查章节一致性（不改写章节正文）
+
+        Args:
+            session: 数据库会话
+            chapter_id: 章节ID
+            content_override: 可选替代文本，不写入数据库
+            strict: 严格模式
+
+        Returns:
+            一致性检查结果
+        """
+        from ainovel.db.crud import chapter_crud
+
+        chapter = chapter_crud.get_by_id(session, chapter_id)
+        if not chapter:
+            raise ValueError(f"章节不存在: {chapter_id}")
+
+        result = self.consistency_gen.check_chapter(
+            session=session,
+            chapter_id=chapter_id,
+            content_override=content_override,
+            strict=strict,
+        )
+        result["novel_id"] = chapter.volume.novel_id
+        result["chapter_title"] = chapter.title
+        return result
+
     def learn_style(
         self,
         session: Session,
@@ -553,6 +592,38 @@ class WorkflowOrchestrator:
             "workflow_status": novel.workflow_status.value,
             "message": "小说创作流程已完成",
         }
+
+    def run_pipeline(
+        self,
+        session: Session,
+        novel_id: int,
+        from_step: int = 3,
+        to_step: int = 5,
+        chapter_range: Optional[str] = None,
+        regenerate: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        统一流水线入口：大纲 -> 细纲 -> 正文
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+            from_step: 起始步骤（3=大纲, 4=细纲, 5=正文）
+            to_step: 结束步骤（须 >= from_step）
+            chapter_range: 章节范围，如 "1-10" 或 "1,3,5"；None 表示全部
+            regenerate: 是否强制重新生成已有内容
+
+        Returns:
+            PipelineResult.to_dict()
+        """
+        runner = PipelineRunner(self)
+        plan = {
+            "from_step": from_step,
+            "to_step": to_step,
+            "chapter_range": chapter_range,
+            "regenerate": regenerate,
+        }
+        return runner.run(session, novel_id, plan)
 
     def _can_continue_to_next_step(self, novel) -> bool:
         """检查是否可以继续到下一步"""

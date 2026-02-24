@@ -126,6 +126,26 @@ async def step6_quality_check(chapter_id: int, session: SessionDep, orch: Orches
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/chapter/{chapter_id}/consistency-check", response_model=ConsistencyCheckResponse)
+async def consistency_check(
+    chapter_id: int,
+    request_data: ConsistencyCheckRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """章节一致性检查（角色/世界观/时间线）"""
+    try:
+        result = orch.check_chapter_consistency(
+            session=session,
+            chapter_id=chapter_id,
+            content_override=request_data.content_override,
+            strict=request_data.strict,
+        )
+        return ConsistencyCheckResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/{novel_id}/step6/batch", response_model=Step6BatchResponse)
 async def step6_batch(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤6：批量质量检查所有已生成章节"""
@@ -144,6 +164,75 @@ async def mark_completed(novel_id: int, session: SessionDep, orch: OrchestratorD
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{novel_id}/pipeline/run", response_model=PipelineRunResponse)
+async def pipeline_run(
+    novel_id: int,
+    request_data: PipelineRunRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """
+    流水线批量运行：大纲 -> 细纲 -> 正文
+
+    支持从任意合法步骤恢复，某章节失败不阻塞整体。
+    """
+    try:
+        result = orch.run_pipeline(
+            session=session,
+            novel_id=novel_id,
+            from_step=request_data.from_step,
+            to_step=request_data.to_step,
+            chapter_range=request_data.chapter_range,
+            regenerate=request_data.regenerate,
+        )
+        return PipelineRunResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{novel_id}/pipeline/status", response_model=dict)
+async def pipeline_status(novel_id: int, session: SessionDep, orch: OrchestratorDep):
+    """
+    查询流水线当前状态：已完成章节数、待处理章节数、失败章节列表。
+    """
+    try:
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise HTTPException(status_code=404, detail=f"小说不存在: {novel_id}")
+
+        all_chapters = []
+        for volume in sorted(novel.volumes, key=lambda v: v.order):
+            all_chapters.extend(sorted(volume.chapters, key=lambda c: c.order))
+
+        chapters_with_outline = [c for c in all_chapters if c.detail_outline is not None]
+        chapters_with_content = [c for c in all_chapters if c.content]
+        chapters_missing_outline = [
+            {"chapter_id": c.id, "chapter_title": c.title}
+            for c in all_chapters
+            if c.detail_outline is None
+        ]
+        chapters_missing_content = [
+            {"chapter_id": c.id, "chapter_title": c.title}
+            for c in all_chapters
+            if not c.content
+        ]
+
+        return {
+            "novel_id": novel_id,
+            "workflow_status": novel.workflow_status.value,
+            "current_step": novel.current_step,
+            "total_chapters": len(all_chapters),
+            "chapters_with_outline": len(chapters_with_outline),
+            "chapters_with_content": len(chapters_with_content),
+            "missing_outline": chapters_missing_outline,
+            "missing_content": chapters_missing_content,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============ HTML 视图路由 ============

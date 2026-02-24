@@ -11,12 +11,13 @@
 缓存机制：压缩结果写入 chapter.summary，避免重复 LLM 调用。
 """
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from loguru import logger
 
 from ainovel.llm import BaseLLMClient
-from ainovel.db import chapter_crud
+from ainovel.db import chapter_crud, volume_crud
+from ainovel.memory import CharacterDatabase, WorldDatabase
 
 
 class CompressionLevel(Enum):
@@ -100,6 +101,64 @@ class ContextCompressor:
 
         parts = self._compress_chapters(chapters_with_distance, token_budget)
         return "\n\n".join(parts)
+
+    def build_context_bundle(
+        self,
+        volume_id: int,
+        current_order: int,
+        window_size: int = 10,
+        token_budget: int = 1200,
+        novel_id: Optional[int] = None,
+        character_names: Optional[List[str]] = None,
+        world_keywords: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        构建章节生成所需的上下文包
+
+        包含三部分：
+        1. 前情回顾（压缩后的历史章节）
+        2. 角色记忆卡
+        3. 世界观卡片
+        """
+        previous_context = self.build_previous_context(
+            volume_id=volume_id,
+            current_order=current_order,
+            window_size=window_size,
+            token_budget=token_budget,
+        )
+
+        resolved_novel_id = novel_id
+        if resolved_novel_id is None:
+            volume = volume_crud.get_by_id(self.session, volume_id)
+            if volume:
+                resolved_novel_id = volume.novel_id
+
+        if resolved_novel_id is None:
+            return {
+                "previous_context": previous_context,
+                "character_memory_cards": [],
+                "world_memory_cards": [],
+            }
+
+        character_db = CharacterDatabase(self.session)
+        world_db = WorldDatabase(self.session)
+
+        character_memory_cards = character_db.get_memory_cards(
+            novel_id=resolved_novel_id,
+            character_names=character_names or [],
+            limit_per_character=3,
+        )
+        world_memory_cards = world_db.get_world_cards(
+            novel_id=resolved_novel_id,
+            keywords=world_keywords or [],
+            limit=8,
+        )
+
+        return {
+            "previous_context": previous_context,
+            "character_memory_cards": character_memory_cards,
+            "world_memory_cards": world_memory_cards,
+        }
 
     def compress_and_cache(self, chapter_id: int) -> str:
         """

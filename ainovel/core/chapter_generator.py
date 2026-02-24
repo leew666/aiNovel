@@ -89,11 +89,33 @@ class ChapterGenerator:
         world_data = self.world_db.list_all(volume.novel_id)
         world_data_list = [data.to_dict() for data in world_data]
 
-        # 6. 生成前情回顾
+        # 6. 生成上下文包（前情 + 角色记忆卡 + 世界观卡片）
         previous_context = ""
+        character_memory_cards: List[Dict[str, Any]] = []
+        world_memory_cards: List[Dict[str, Any]] = []
         if use_previous_context:
-            previous_context = self._generate_previous_context(
-                chapter.volume_id, chapter.order, context_window_size
+            context_bundle = self.context_compressor.build_context_bundle(
+                volume_id=chapter.volume_id,
+                current_order=chapter.order,
+                window_size=context_window_size,
+                token_budget=800,
+                novel_id=volume.novel_id,
+                character_names=character_names,
+                world_keywords=key_events,
+            )
+            previous_context = context_bundle.get("previous_context", "")
+            character_memory_cards = context_bundle.get("character_memory_cards", [])
+            world_memory_cards = context_bundle.get("world_memory_cards", [])
+        else:
+            character_memory_cards = self.character_db.get_memory_cards(
+                novel_id=volume.novel_id,
+                character_names=character_names,
+                limit_per_character=3,
+            )
+            world_memory_cards = self.world_db.get_world_cards(
+                novel_id=volume.novel_id,
+                keywords=key_events,
+                limit=8,
             )
 
         # 7. 生成提示词
@@ -107,6 +129,8 @@ class ChapterGenerator:
             character_list=character_list,
             world_data_list=world_data_list,
             previous_context=previous_context,
+            character_memory_cards=character_memory_cards,
+            world_memory_cards=world_memory_cards,
             style_guide=style_guide,
             word_count_min=word_count_min,
             word_count_max=word_count_max,

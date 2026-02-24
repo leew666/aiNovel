@@ -372,5 +372,83 @@ def complete(novel_id: int):
         logger.exception("标记完成失败")
 
 
+@cli.command("pipeline-run")
+@click.argument("novel_id", type=int)
+@click.option("--from-step", "from_step", default=3, type=click.IntRange(3, 5), show_default=True, help="起始步骤（3=大纲, 4=细纲, 5=正文）")
+@click.option("--to-step", "to_step", default=5, type=click.IntRange(3, 5), show_default=True, help="结束步骤（须 >= from-step）")
+@click.option("--chapters", default=None, help="章节范围，如 1-10 或 1,3,5；省略则全部")
+@click.option("--regenerate", is_flag=True, help="强制重新生成已有内容")
+def pipeline_run(novel_id: int, from_step: int, to_step: int, chapters: str, regenerate: bool):
+    """
+    流水线批量运行：大纲 -> 细纲 -> 正文
+
+    示例：ainovel pipeline-run 1 --from-step 3 --to-step 5 --chapters 1-10
+    """
+    if from_step > to_step:
+        console.print(f"[red]错误：--from-step({from_step}) 不能大于 --to-step({to_step})[/red]")
+        return
+
+    try:
+        db = get_db()
+
+        with db.session_scope() as session:
+            orchestrator = get_orchestrator(session)
+
+            step_names = {3: "大纲", 4: "细纲", 5: "正文"}
+            range_desc = chapters or "全部"
+            console.print(
+                f"[cyan]流水线启动：小说 ID={novel_id} "
+                f"步骤 {from_step}({step_names[from_step]}) → {to_step}({step_names[to_step]}) "
+                f"章节范围={range_desc}[/cyan]"
+            )
+
+            result = orchestrator.run_pipeline(
+                session=session,
+                novel_id=novel_id,
+                from_step=from_step,
+                to_step=to_step,
+                chapter_range=chapters,
+                regenerate=regenerate,
+            )
+
+            # 汇总输出
+            console.print(Panel.fit(
+                f"[green]✓[/green] 流水线完成！\n\n"
+                f"[cyan]总任务:[/cyan] {result['total']}\n"
+                f"[cyan]成功:[/cyan] {result['succeeded']}\n"
+                f"[cyan]失败:[/cyan] {result['failed']}\n"
+                f"[cyan]跳过:[/cyan] {result['skipped']}",
+                title="流水线结果",
+                border_style="green" if result['failed'] == 0 else "yellow",
+            ))
+
+            # 打印失败章节
+            if result['failed_chapter_ids']:
+                table = Table(title="失败章节", show_header=True, header_style="bold red")
+                table.add_column("章节ID", width=8)
+                table.add_column("标题")
+                table.add_column("步骤", width=6)
+                table.add_column("错误信息")
+                for task in result['task_results']:
+                    if not task['success']:
+                        table.add_row(
+                            str(task['chapter_id']),
+                            task['chapter_title'],
+                            str(task['step']),
+                            task.get('error', '') or '',
+                        )
+                console.print(table)
+                console.print(
+                    f"\n[yellow]重跑失败章节：[/yellow] "
+                    f"ainovel pipeline-run {novel_id} "
+                    f"--from-step 4 --chapters "
+                    f"{','.join(str(i) for i in result['failed_chapter_ids'])}"
+                )
+
+    except Exception as e:
+        console.print(f"[red]错误：{e}[/red]")
+        logger.exception("流水线运行失败")
+
+
 if __name__ == "__main__":
     cli()

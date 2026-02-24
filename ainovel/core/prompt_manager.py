@@ -212,6 +212,12 @@ class PromptManager:
 ## 世界观背景
 {world_info}
 
+## 角色记忆卡（高优先级约束）
+{character_memory_cards}
+
+## 世界观卡片（高优先级约束）
+{world_memory_cards}
+
 ## 前情回顾
 {previous_context}
 
@@ -227,6 +233,53 @@ class PromptManager:
 6. 注意伏笔和铺垫
 
 请直接输出章节正文内容，不要包含任何格式说明或元数据。
+"""
+
+    CONSISTENCY_CHECK_PROMPT = """你是一位小说一致性审校员。请检查“待检查文本”是否与已有设定冲突。
+
+## 小说基本信息
+- 标题: {title}
+- 当前分卷: {volume_title}
+- 当前章节: 第{chapter_order}章 - {chapter_title}
+
+## 本章梗概
+{chapter_summary}
+
+## 前情回顾
+{previous_context}
+
+## 角色记忆卡
+{character_memory_cards}
+
+## 世界观卡片
+{world_memory_cards}
+
+## 待检查文本
+{chapter_content}
+
+## 检查要求
+1. 检查角色人设、目标、情绪、关系是否冲突
+2. 检查世界观规则、组织、物品设定是否冲突
+3. 检查时间线与前情衔接是否冲突
+4. 给出可执行修复建议，避免空泛评价
+5. 严格模式：{strict_mode}
+
+## 输出格式（JSON）
+```json
+{{
+  "overall_risk": "low|medium|high",
+  "summary": "总体结论（80字以内）",
+  "issues": [
+    {{
+      "severity": "critical|major|minor",
+      "type": "character|world|timeline|logic",
+      "location": "问题位置（段落或句子）",
+      "description": "冲突描述",
+      "suggestion": "修复建议"
+    }}
+  ]
+}}
+```
 """
 
     # 步骤6：质量检查提示词模板
@@ -463,6 +516,41 @@ class PromptManager:
 
         return "\n\n".join(sections)
 
+    @staticmethod
+    def format_character_memory_cards(cards: List[Dict[str, Any]]) -> str:
+        """格式化角色记忆卡"""
+        if not cards:
+            return "暂无角色记忆卡"
+
+        sections = []
+        for card in cards:
+            memories = card.get("important_memories") or []
+            memories_text = "; ".join(memories) if memories else "无"
+            section = (
+                f"### {card.get('name', '未命名')} ({card.get('mbti', '未知')})\n"
+                f"- 当前目标: {card.get('goals') or '未设定'}\n"
+                f"- 当前状态: {card.get('current_status') or '未设定'}\n"
+                f"- 当前心情: {card.get('current_mood') or '未设定'}\n"
+                f"- 重要记忆: {memories_text}"
+            )
+            sections.append(section)
+
+        return "\n\n".join(sections)
+
+    @staticmethod
+    def format_world_memory_cards(cards: List[Dict[str, Any]]) -> str:
+        """格式化世界观卡片"""
+        if not cards:
+            return "暂无世界观卡片"
+
+        sections = []
+        for card in cards:
+            sections.append(
+                f"### {card.get('data_type', 'unknown')} - {card.get('name', '未命名')}\n"
+                f"{card.get('description', '')}"
+            )
+        return "\n\n".join(sections)
+
     @classmethod
     def generate_outline_prompt(
         cls,
@@ -505,6 +593,8 @@ class PromptManager:
         character_list: List[Dict[str, Any]],
         world_data_list: List[Dict[str, Any]],
         previous_context: str,
+        character_memory_cards: List[Dict[str, Any]] | None = None,
+        world_memory_cards: List[Dict[str, Any]] | None = None,
         style_guide: str = "",
         word_count_min: int = 2000,
         word_count_max: int = 3000,
@@ -522,6 +612,8 @@ class PromptManager:
             character_list: 涉及角色列表
             world_data_list: 世界观数据列表
             previous_context: 前情回顾
+            character_memory_cards: 角色记忆卡
+            world_memory_cards: 世界观卡片
             style_guide: 写作风格指南
             word_count_min: 最小字数
             word_count_max: 最大字数
@@ -540,10 +632,46 @@ class PromptManager:
             key_events=key_events_str,
             character_info=cls.format_character_info(character_list),
             world_info=cls.format_world_info(world_data_list),
+            character_memory_cards=cls.format_character_memory_cards(
+                character_memory_cards or []
+            ),
+            world_memory_cards=cls.format_world_memory_cards(
+                world_memory_cards or []
+            ),
             previous_context=previous_context or "本章为开篇，无前情",
             style_guide=style_guide or "采用网络小说常见风格，节奏紧凑，对话生动",
             word_count_min=word_count_min,
             word_count_max=word_count_max,
+        )
+
+    @classmethod
+    def generate_consistency_check_prompt(
+        cls,
+        title: str,
+        volume_title: str,
+        chapter_order: int,
+        chapter_title: str,
+        chapter_summary: str,
+        chapter_content: str,
+        previous_context: str,
+        character_memory_cards: List[Dict[str, Any]],
+        world_memory_cards: List[Dict[str, Any]],
+        strict: bool = False,
+    ) -> str:
+        """生成一致性检查提示词"""
+        return cls.CONSISTENCY_CHECK_PROMPT.format(
+            title=title,
+            volume_title=volume_title,
+            chapter_order=chapter_order,
+            chapter_title=chapter_title,
+            chapter_summary=chapter_summary or "暂无梗概",
+            chapter_content=chapter_content,
+            previous_context=previous_context or "本章为开篇，无前情",
+            character_memory_cards=cls.format_character_memory_cards(
+                character_memory_cards
+            ),
+            world_memory_cards=cls.format_world_memory_cards(world_memory_cards),
+            strict_mode="是" if strict else "否",
         )
 
     @classmethod

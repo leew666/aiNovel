@@ -10,6 +10,7 @@ from ainovel.core.prompt_manager import PromptManager
 from ainovel.llm import BaseLLMClient
 from ainovel.db import init_database, novel_crud, volume_crud, chapter_crud
 from ainovel.db.base import Base
+from ainovel.memory import CharacterDatabase, WorldDatabase, MBTIType
 from ainovel.db.novel import Novel
 from ainovel.db.volume import Volume
 from ainovel.db.chapter import Chapter
@@ -162,6 +163,47 @@ class TestContextCompressor:
         # 结果不为空但内容受限
         assert result != "本章为开篇，无前情"
         assert len(result) <= 200
+
+    def test_build_context_bundle_includes_memory_cards(self, mock_llm, db_session, setup_chapters):
+        """上下文包应包含前情、角色记忆卡和世界观卡片"""
+        volume, _ = setup_chapters
+        novel_id = volume.novel_id
+
+        char_db = CharacterDatabase(db_session)
+        world_db = WorldDatabase(db_session)
+
+        char = char_db.create_character(
+            novel_id=novel_id,
+            name="张三",
+            mbti=MBTIType.INTJ,
+            background="少年天才",
+        )
+        char_db.add_memory(
+            character_id=char.id,
+            event="拜师",
+            content="张三在青云宗拜师成功",
+            importance="high",
+        )
+        world_db.create_location(
+            novel_id=novel_id,
+            name="青云宗",
+            description="名门正派",
+        )
+
+        compressor = ContextCompressor(mock_llm, db_session)
+        bundle = compressor.build_context_bundle(
+            volume_id=volume.id,
+            current_order=5,
+            novel_id=novel_id,
+            character_names=["张三"],
+            world_keywords=["青云宗"],
+        )
+
+        assert "previous_context" in bundle
+        assert "character_memory_cards" in bundle
+        assert "world_memory_cards" in bundle
+        assert bundle["character_memory_cards"][0]["name"] == "张三"
+        assert bundle["world_memory_cards"][0]["name"] == "青云宗"
 
 
 class TestPromptManagerCompression:

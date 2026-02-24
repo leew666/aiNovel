@@ -171,6 +171,8 @@ class TestPromptManager:
         assert "序章" in prompt
         assert "故事开始" in prompt
         assert "主角出场" in prompt
+        assert "角色记忆卡" in prompt
+        assert "世界观卡片" in prompt
 
 
 class TestOutlineGenerator:

@@ -26,6 +26,15 @@ class Step5Request(BaseModel):
     style_guide: Optional[str] = Field(None, description="写作风格指南")
 
 
+class ConsistencyCheckRequest(BaseModel):
+    """一致性检查请求"""
+
+    content_override: Optional[str] = Field(
+        None, description="可选检查文本，不写入数据库"
+    )
+    strict: bool = Field(False, description="是否启用严格模式")
+
+
 # ============ 响应模型 ============
 
 
@@ -115,3 +124,53 @@ class Step6BatchResponse(BaseModel):
     workflow_status: str
     total_chapters: int
     results: list[dict[str, Any]]
+
+
+class ConsistencyCheckResponse(BaseModel):
+    """一致性检查响应"""
+
+    novel_id: int
+    chapter_id: int
+    chapter_title: str
+    overall_risk: str
+    summary: str = ""
+    issues: list[dict[str, Any]]
+    usage: dict[str, Any]
+    cost: float
+
+
+class PipelineRunRequest(BaseModel):
+    """流水线运行请求"""
+
+    from_step: int = Field(3, ge=3, le=5, description="起始步骤（3=大纲, 4=细纲, 5=正文）")
+    to_step: int = Field(5, ge=3, le=5, description="结束步骤（须 >= from_step）")
+    chapter_range: Optional[str] = Field(
+        None, description="章节范围，如 '1-10' 或 '1,3,5'；None 表示全部"
+    )
+    regenerate: bool = Field(False, description="是否强制重新生成已有内容")
+
+
+class PipelineTaskResult(BaseModel):
+    """单章节任务结果"""
+
+    chapter_id: int
+    chapter_title: str
+    step: int
+    success: bool
+    error: Optional[str] = None
+    stats: dict[str, Any] = {}
+
+
+class PipelineRunResponse(BaseModel):
+    """流水线运行响应"""
+
+    novel_id: int
+    from_step: int
+    to_step: int
+    chapter_range: Optional[str]
+    total: int
+    succeeded: int
+    failed: int
+    skipped: int
+    task_results: list[PipelineTaskResult]
+    failed_chapter_ids: list[int]

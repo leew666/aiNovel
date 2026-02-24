@@ -3,6 +3,7 @@ WorldDatabase 服务类
 
 提供世界观数据管理的业务逻辑封装
 """
+import json
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
@@ -230,6 +231,63 @@ class WorldDatabase:
             世界观数据列表
         """
         return world_data_crud.get_by_novel_id(self.session, novel_id, skip, limit)
+
+    def get_world_cards(
+        self,
+        novel_id: int,
+        keywords: List[str],
+        limit: int = 8,
+    ) -> List[Dict[str, Any]]:
+        """
+        获取世界观卡片（按关键词相关性粗排）
+
+        Args:
+            novel_id: 小说 ID
+            keywords: 关键词列表，通常来自关键事件或章节主题
+            limit: 返回最大条数
+
+        Returns:
+            世界观卡片列表
+        """
+        all_data = self.list_all(novel_id, limit=200)
+        if not all_data:
+            return []
+
+        normalized_keywords = [
+            kw.strip().lower() for kw in keywords if kw and kw.strip()
+        ]
+
+        if not normalized_keywords:
+            selected = all_data[:limit]
+        else:
+            scored = []
+            for item in all_data:
+                text = " ".join(
+                    [
+                        item.name or "",
+                        item.description or "",
+                        json.dumps(item.properties or {}, ensure_ascii=False),
+                    ]
+                ).lower()
+                score = sum(1 for kw in normalized_keywords if kw in text)
+                if score > 0:
+                    scored.append((score, item))
+
+            scored.sort(key=lambda pair: pair[0], reverse=True)
+            selected = [item for _, item in scored[:limit]]
+
+            if not selected:
+                selected = all_data[:limit]
+
+        return [
+            {
+                "name": item.name,
+                "data_type": item.data_type.value,
+                "description": item.description,
+                "properties": item.properties or {},
+            }
+            for item in selected
+        ]
 
     def list_by_type(
         self, novel_id: int, data_type: WorldDataType, skip: int = 0, limit: int = 100

@@ -3,6 +3,7 @@ CharacterDatabase 服务类
 
 提供角色管理的业务逻辑封装
 """
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
@@ -93,6 +94,73 @@ class CharacterDatabase:
             角色列表
         """
         return character_crud.get_by_novel_id(self.session, novel_id, skip, limit)
+
+    def get_memory_cards(
+        self,
+        novel_id: int,
+        character_names: List[str],
+        limit_per_character: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """
+        获取角色记忆卡列表（供提示词直接使用）
+
+        Args:
+            novel_id: 小说 ID
+            character_names: 角色名称列表；为空时自动选择前若干角色
+            limit_per_character: 每个角色最多返回的记忆条数
+
+        Returns:
+            角色记忆卡列表
+        """
+        if character_names:
+            characters = []
+            for name in character_names:
+                char = self.get_character_by_name(novel_id, name)
+                if char:
+                    characters.append(char)
+        else:
+            characters = self.list_characters(novel_id, limit=8)
+
+        def _importance_rank(memory: Dict[str, Any]) -> int:
+            importance = (memory.get("importance") or "medium").lower()
+            return {"high": 3, "medium": 2, "low": 1}.get(importance, 2)
+
+        def _timestamp(memory: Dict[str, Any]) -> datetime:
+            raw = memory.get("timestamp")
+            if not raw:
+                return datetime.min
+            try:
+                return datetime.fromisoformat(raw)
+            except (TypeError, ValueError):
+                return datetime.min
+
+        cards: List[Dict[str, Any]] = []
+        for char in characters:
+            memories = char.memories or []
+            sorted_memories = sorted(
+                memories,
+                key=lambda item: (_importance_rank(item), _timestamp(item)),
+                reverse=True,
+            )
+            top_memories = sorted_memories[:limit_per_character]
+
+            cards.append(
+                {
+                    "name": char.name,
+                    "mbti": char.mbti.value,
+                    "goals": char.goals,
+                    "current_status": char.current_status,
+                    "current_mood": char.current_mood,
+                    "important_memories": [
+                        m.get("content", "")
+                        for m in top_memories
+                        if m.get("content")
+                    ],
+                    "relationships": char.relationships or {},
+                }
+            )
+
+        return cards
 
     def list_characters_by_mbti(
         self, novel_id: int, mbti: MBTIType, skip: int = 0, limit: int = 100
