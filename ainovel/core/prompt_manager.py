@@ -337,6 +337,47 @@ class PromptManager:
 请直接输出摘要内容。
 """
 
+    # 分层压缩提示词模板（上下文压缩器专用）
+    COMPRESSION_DETAILED_PROMPT = """请将以下章节内容压缩为详细摘要，保留关键情节、角色互动和重要伏笔。
+
+## 章节内容
+{content}
+
+## 要求
+- 摘要长度：约 {target_words} 字
+- 保留：关键事件、角色行为、重要对话要点、伏笔与转折
+- 使用第三人称叙述
+- 语言简洁，不加评论
+
+请直接输出摘要。
+"""
+
+    COMPRESSION_BRIEF_PROMPT = """请将以下章节内容压缩为简要摘要，只保留核心事件。
+
+## 章节内容
+{content}
+
+## 要求
+- 摘要长度：约 {target_words} 字
+- 只保留：核心情节推进、关键角色行为
+- 使用第三人称叙述
+
+请直接输出摘要。
+"""
+
+    COMPRESSION_MINIMAL_PROMPT = """请将以下章节内容提炼为关键事件列表。
+
+## 章节内容
+{content}
+
+## 要求
+- 总长度：约 {target_words} 字
+- 格式：用分号分隔的事件短语，如"张三拜师；获得法器；初遇反派"
+- 只保留对后续剧情有影响的事件
+
+请直接输出事件列表。
+"""
+
     @staticmethod
     def format_world_info(world_data_list: List[Dict[str, Any]]) -> str:
         """
@@ -510,6 +551,29 @@ class PromptManager:
             完整的提示词
         """
         return cls.CONTEXT_SUMMARY_PROMPT.format(content=content)
+
+    @classmethod
+    def generate_compression_prompt(
+        cls, content: str, level: str, target_words: int
+    ) -> str:
+        """
+        生成分层压缩提示词（供 ContextCompressor 使用）
+
+        Args:
+            content: 章节正文
+            level: 压缩级别，"detailed" / "brief" / "minimal"
+            target_words: 目标字数
+
+        Returns:
+            完整的提示词
+        """
+        template_map = {
+            "detailed": cls.COMPRESSION_DETAILED_PROMPT,
+            "brief": cls.COMPRESSION_BRIEF_PROMPT,
+            "minimal": cls.COMPRESSION_MINIMAL_PROMPT,
+        }
+        template = template_map.get(level, cls.COMPRESSION_BRIEF_PROMPT)
+        return template.format(content=content, target_words=target_words)
 
     @classmethod
     def generate_planning_prompt(cls, initial_idea: str) -> str:

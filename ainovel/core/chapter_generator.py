@@ -9,6 +9,7 @@ from loguru import logger
 
 from ainovel.llm import BaseLLMClient
 from ainovel.core.prompt_manager import PromptManager
+from ainovel.core.context_compressor import ContextCompressor
 from ainovel.db import novel_crud, volume_crud, chapter_crud
 from ainovel.memory import CharacterDatabase, WorldDatabase
 
@@ -29,6 +30,7 @@ class ChapterGenerator:
         self.prompt_manager = PromptManager()
         self.character_db = CharacterDatabase(session)
         self.world_db = WorldDatabase(session)
+        self.context_compressor = ContextCompressor(llm_client, session)
 
     def generate_chapter(
         self,
@@ -216,36 +218,18 @@ class ChapterGenerator:
         self, content: str, temperature: float = 0.5, max_tokens: int = 300
     ) -> str:
         """
-        生成章节摘要（用于前情回顾）
+        生成章节摘要（向后兼容接口，内部委托给 ContextCompressor）
 
         Args:
             content: 章节内容
-            temperature: LLM温度参数
-            max_tokens: 最大生成token数
+            temperature: 保留参数（ContextCompressor 内部固定使用 0.3）
+            max_tokens: 保留参数
 
         Returns:
             章节摘要
         """
-        prompt = self.prompt_manager.generate_context_summary_prompt(content)
-
-        messages = [{"role": "user", "content": prompt}]
-
-        try:
-            response = self.llm_client.generate(
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-
-            summary = response["content"].strip()
-            logger.debug(f"生成摘要完成，长度: {len(summary)} 字符")
-
-            return summary
-
-        except Exception as e:
-            logger.error(f"摘要生成失败: {e}")
-            # 降级方案：截取前200字
-            return content[:200] + "..."
+        from ainovel.core.context_compressor import CompressionLevel
+        return self.context_compressor._compress_single(content, CompressionLevel.DETAILED)
 
     def _parse_chapter_outline(self, content: str) -> tuple[str, List[str]]:
         """
@@ -336,7 +320,7 @@ class ChapterGenerator:
         self, volume_id: int, current_order: int, window_size: int
     ) -> str:
         """
-        生成前情回顾
+        生成前情回顾（委托给 ContextCompressor）
 
         Args:
             volume_id: 分卷ID
@@ -346,29 +330,8 @@ class ChapterGenerator:
         Returns:
             前情回顾文本
         """
-        # 获取前N章
-        start_order = max(1, current_order - window_size)
-        previous_chapters = []
-
-        for order in range(start_order, current_order):
-            chapter = chapter_crud.get_by_order(self.session, volume_id, order)
-            if chapter and chapter.content:
-                previous_chapters.append(chapter)
-
-        if not previous_chapters:
-            return "本章为开篇，无前情"
-
-        # 压缩前文
-        context_parts = []
-        for chapter in previous_chapters:
-            # 如果内容很长，生成摘要
-            if len(chapter.content) > 500:
-                summary = self.generate_context_summary(chapter.content)
-                context_parts.append(f"第{chapter.order}章 {chapter.title}: {summary}")
-            else:
-                # 内容较短，直接使用
-                context_parts.append(
-                    f"第{chapter.order}章 {chapter.title}: {chapter.content[:200]}"
-                )
-
-        return "\n\n".join(context_parts)
+        return self.context_compressor.build_previous_context(
+            volume_id=volume_id,
+            current_order=current_order,
+            window_size=window_size,
+        )
