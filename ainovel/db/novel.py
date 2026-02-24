@@ -79,5 +79,10 @@ class Novel(Base, TimestampMixin):
         "Volume", back_populates="novel", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    # 关系：一对多，一部小说可有多个文风档案
+    style_profiles: Mapped[List["StyleProfile"]] = relationship(
+        "StyleProfile", back_populates="novel", cascade="all, delete-orphan", lazy="selectin"
+    )
+
     def __repr__(self) -> str:
         return f"Novel(id={self.id}, title={self.title!r}, status={self.status.value})"

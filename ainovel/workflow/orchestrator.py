@@ -18,6 +18,8 @@ from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
 from ainovel.memory.character_db import CharacterDatabase
 from ainovel.memory.world_db import WorldDatabase
+from ainovel.style.analyzer import StyleAnalyzer
+from ainovel.style.applicator import StyleApplicator
 from ainovel.exceptions import (
     NovelNotFoundError,
     ChapterNotFoundError,
@@ -52,6 +54,7 @@ class WorkflowOrchestrator:
         self.world_building_gen = WorldBuildingGenerator(llm_client, character_db, world_db)
         self.detail_outline_gen = DetailOutlineGenerator(llm_client)
         self.quality_check_gen = QualityCheckGenerator(llm_client)
+        self.style_analyzer = StyleAnalyzer(llm_client)
 
     def get_workflow_status(self, session: Session, novel_id: int) -> Dict[str, Any]:
         """
@@ -328,6 +331,7 @@ class WorkflowOrchestrator:
         session: Session,
         chapter_id: int,
         style_guide: Optional[str] = None,
+        style_profile_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         步骤5：为指定章节生成内容
@@ -335,7 +339,8 @@ class WorkflowOrchestrator:
         Args:
             session: 数据库会话
             chapter_id: 章节ID
-            style_guide: 写作风格指南
+            style_guide: 写作风格指南（直接传入文本，优先级最高）
+            style_profile_id: 指定文风档案ID（次优先）；若两者均为None则自动加载激活档案
 
         Returns:
             生成结果
@@ -347,6 +352,13 @@ class WorkflowOrchestrator:
             raise ValueError(f"章节不存在: {chapter_id}")
 
         novel = chapter.volume.novel
+
+        # 按优先级确定最终使用的风格指南
+        if style_guide is None:
+            if style_profile_id is not None:
+                style_guide = StyleApplicator.load_guide_by_id(session, style_profile_id)
+            else:
+                style_guide = StyleApplicator.load_active_guide(session, novel.id)
 
         # 创建ChapterGenerator实例（需要session）
         chapter_gen = ChapterGenerator(self.llm_client, session)
@@ -431,6 +443,92 @@ class WorkflowOrchestrator:
 
         result["workflow_status"] = novel.workflow_status.value
         return result
+
+    def learn_style(
+        self,
+        session: Session,
+        novel_id: int,
+        name: str,
+        source_text: str,
+        set_active: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        从参考文本学习写作风格，保存为文风档案
+
+        Args:
+            session: 数据库会话
+            novel_id: 关联小说ID
+            name: 档案名称（如"金庸武侠风"）
+            source_text: 参考文本（建议500字以上）
+            set_active: 是否立即激活此档案
+
+        Returns:
+            {
+                "profile_id": 1,
+                "name": "...",
+                "style_features": {...},
+                "style_guide": "...",
+                "novel_id": 1,
+            }
+        """
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        result = self.style_analyzer.analyze_and_save(
+            session=session,
+            novel_id=novel_id,
+            name=name,
+            source_text=source_text,
+            set_active=set_active,
+        )
+        result["novel_id"] = novel_id
+        return result
+
+    def list_style_profiles(self, session: Session, novel_id: int) -> Dict[str, Any]:
+        """
+        列出小说的所有文风档案
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+
+        Returns:
+            档案列表
+        """
+        from ainovel.db.crud import style_profile_crud
+
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        profiles = style_profile_crud.get_by_novel_id(session, novel_id)
+        return {
+            "novel_id": novel_id,
+            "profiles": [p.to_dict() for p in profiles],
+        }
+
+    def activate_style_profile(
+        self, session: Session, novel_id: int, profile_id: int
+    ) -> Dict[str, Any]:
+        """
+        激活指定文风档案
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+            profile_id: 要激活的档案ID
+
+        Returns:
+            激活结果
+        """
+        from ainovel.db.crud import style_profile_crud
+
+        profile = style_profile_crud.set_active(session, novel_id, profile_id)
+        if not profile:
+            raise ValueError(f"文风档案不存在或不属于该小说: profile_id={profile_id}")
+        session.commit()
+        return {"novel_id": novel_id, "active_profile_id": profile_id, "name": profile.name}
 
     def mark_completed(self, session: Session, novel_id: int) -> Dict[str, Any]:
         """

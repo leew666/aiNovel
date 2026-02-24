@@ -289,6 +289,39 @@ class PromptManager:
 ```
 """
 
+    # 文风分析提示词模板
+    STYLE_ANALYSIS_PROMPT = """你是一位专业的文学风格分析师。请深度分析以下参考文本的写作风格，提取可复用的风格特征。
+
+## 参考文本
+{source_text}
+
+## 分析维度
+1. **句式特征**：句子长短分布、常用句式结构（排比/倒装/省略等）
+2. **词汇风格**：用词偏好（文言/口语/网络用语）、高频词汇类型
+3. **叙事视角**：第一/第三人称、叙事距离（亲近/疏离）
+4. **节奏控制**：段落节奏（快/慢）、张弛规律
+5. **对话风格**：对话密度、对话语气特征
+6. **描写密度**：场景/动作/心理描写的比例与细腻程度
+7. **情感基调**：整体情绪色彩与表达方式
+8. **特色技法**：作者独特的写作手法或标志性表达
+
+## 输出格式（JSON）
+请按照以下JSON格式输出风格分析结果：
+```json
+{{
+  "sentence_patterns": ["特征1", "特征2"],
+  "vocabulary_style": "词汇风格描述",
+  "narrative_perspective": "叙事视角描述",
+  "pacing": "节奏特征描述",
+  "dialogue_style": "对话风格描述",
+  "description_density": "描写密度描述",
+  "tone": "情感基调描述",
+  "special_techniques": ["技法1", "技法2"],
+  "summary": "综合风格描述（150字以内，可直接作为写作指令使用）"
+}}
+```
+"""
+
     # 前情回顾生成提示词模板
     CONTEXT_SUMMARY_PROMPT = """请将以下章节内容压缩为简短的摘要，保留关键情节和重要信息。
 
@@ -451,6 +484,19 @@ class PromptManager:
             word_count_min=word_count_min,
             word_count_max=word_count_max,
         )
+
+    @classmethod
+    def generate_style_analysis_prompt(cls, source_text: str) -> str:
+        """
+        生成文风分析提示词
+
+        Args:
+            source_text: 待分析的参考文本
+
+        Returns:
+            完整的提示词
+        """
+        return cls.STYLE_ANALYSIS_PROMPT.format(source_text=source_text)
 
     @classmethod
     def generate_context_summary_prompt(cls, content: str) -> str:

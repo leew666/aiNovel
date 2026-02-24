@@ -116,7 +116,6 @@ class WorldBuildingGenerator:
 
             if data_type == WorldDataType.LOCATION:
                 self.world_db.create_location(
-                    session=session,
                     novel_id=novel_id,
                     name=wd["name"],
                     description=wd["description"],
@@ -124,7 +123,6 @@ class WorldBuildingGenerator:
                 )
             elif data_type == WorldDataType.ORGANIZATION:
                 self.world_db.create_organization(
-                    session=session,
                     novel_id=novel_id,
                     name=wd["name"],
                     description=wd["description"],
@@ -132,7 +130,6 @@ class WorldBuildingGenerator:
                 )
             elif data_type == WorldDataType.ITEM:
                 self.world_db.create_item(
-                    session=session,
                     novel_id=novel_id,
                     name=wd["name"],
                     description=wd["description"],
@@ -140,7 +137,6 @@ class WorldBuildingGenerator:
                 )
             elif data_type == WorldDataType.RULE:
                 self.world_db.create_rule(
-                    session=session,
                     novel_id=novel_id,
                     name=wd["name"],
                     description=wd["description"],
@@ -155,7 +151,6 @@ class WorldBuildingGenerator:
             mbti = MBTIType[mbti_str]
 
             self.character_db.create_character(
-                session=session,
                 novel_id=novel_id,
                 name=char["name"],
                 mbti=mbti,

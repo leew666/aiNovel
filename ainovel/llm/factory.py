@@ -5,7 +5,7 @@ LLM配置和工厂类
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from pydantic import BaseModel, Field, field_validator
 from loguru import logger
 
@@ -151,9 +151,20 @@ class LLMFactory:
             APIKeyError: API密钥未配置
             LLMError: 不支持的提供商
         """
+        # 兼容旧参数命名：api_key
+        if provider == "openai" and "api_key" in kwargs and "openai_api_key" not in kwargs:
+            kwargs["openai_api_key"] = kwargs.pop("api_key")
+        elif provider == "claude" and "api_key" in kwargs and "anthropic_api_key" not in kwargs:
+            kwargs["anthropic_api_key"] = kwargs.pop("api_key")
+        elif provider == "qwen" and "api_key" in kwargs and "dashscope_api_key" not in kwargs:
+            kwargs["dashscope_api_key"] = kwargs.pop("api_key")
+
         # 加载配置
         if config is None:
             config = LLMConfig.from_env(provider=provider, **kwargs)
+
+        # 优先校验密钥，避免在缺失密钥时误用缓存客户端
+        cls._validate_api_key(config)
 
         # 检查缓存
         cache_key = f"{config.provider}:{config.model}"
@@ -165,8 +176,6 @@ class LLMFactory:
         logger.info(f"创建LLM客户端: {config.provider}, 模型: {config.model}")
 
         if config.provider == "openai":
-            if not config.openai_api_key:
-                raise APIKeyError("OpenAI API密钥未配置")
             client = OpenAIClient(
                 api_key=config.openai_api_key,
                 model=config.model,
@@ -175,8 +184,6 @@ class LLMFactory:
             )
 
         elif config.provider == "claude":
-            if not config.anthropic_api_key:
-                raise APIKeyError("Anthropic API密钥未配置")
             client = ClaudeClient(
                 api_key=config.anthropic_api_key,
                 model=config.model,
@@ -184,8 +191,6 @@ class LLMFactory:
             )
 
         elif config.provider == "qwen":
-            if not config.dashscope_api_key:
-                raise APIKeyError("DashScope API密钥未配置")
             client = QwenClient(
                 api_key=config.dashscope_api_key,
                 model=config.model,
@@ -204,3 +209,65 @@ class LLMFactory:
         """清空客户端缓存"""
         cls._clients.clear()
         logger.info("已清空LLM客户端缓存")
+
+    @classmethod
+    def create_from_env(cls, **kwargs) -> BaseLLMClient:
+        """
+        从环境变量创建客户端（向后兼容）。
+        """
+        return cls.create_client(config=LLMConfig.from_env(**kwargs))
+
+    @classmethod
+    def create_openai_client(
+        cls,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        **kwargs,
+    ) -> BaseLLMClient:
+        """创建 OpenAI 客户端（向后兼容）。"""
+        return cls.create_client(
+            provider="openai",
+            model=model,
+            openai_api_key=api_key,
+            **kwargs,
+        )
+
+    @classmethod
+    def create_claude_client(
+        cls,
+        api_key: str,
+        model: str = "claude-3-haiku-20240307",
+        **kwargs,
+    ) -> BaseLLMClient:
+        """创建 Claude 客户端（向后兼容）。"""
+        return cls.create_client(
+            provider="claude",
+            model=model,
+            anthropic_api_key=api_key,
+            **kwargs,
+        )
+
+    @classmethod
+    def create_qwen_client(
+        cls,
+        api_key: str,
+        model: str = "qwen-max",
+        **kwargs,
+    ) -> BaseLLMClient:
+        """创建 Qwen 客户端（向后兼容）。"""
+        return cls.create_client(
+            provider="qwen",
+            model=model,
+            dashscope_api_key=api_key,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _validate_api_key(config: LLMConfig) -> None:
+        """根据提供商校验 API Key。"""
+        if config.provider == "openai" and not config.openai_api_key:
+            raise APIKeyError("OpenAI API密钥未配置")
+        if config.provider == "claude" and not config.anthropic_api_key:
+            raise APIKeyError("Anthropic API密钥未配置")
+        if config.provider == "qwen" and not config.dashscope_api_key:
+            raise APIKeyError("DashScope API密钥未配置")

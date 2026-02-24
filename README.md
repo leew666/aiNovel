@@ -44,7 +44,16 @@ Web界面层 → 6步流程编排层 → 长文本生成核心 → 文风学习�
 git clone <repository_url>
 cd aiNovel
 
-# 安装依赖(推荐使用uv或pip)
+# 创建虚拟环境
+python3 -m venv .venv
+
+# 激活虚拟环境（macOS/Linux）
+source .venv/bin/activate
+
+# 激活虚拟环境（Windows PowerShell）
+# .venv\Scripts\Activate.ps1
+
+# 安装依赖
 pip install -e .
 
 # 配置环境变量
@@ -52,30 +61,45 @@ cp .env.example .env
 # 编辑.env文件,填入你的API密钥
 ```
 
-### 基础使用(CLI模式 - 阶段1)
+### 基础使用（CLI）
+
+> 若提示 `ainovel: command not found`，请先执行 `pip install -e .`，或使用 `python -m ainovel.cli.main` 代替 `ainovel`。
 
 ```bash
 # 创建新项目
 ainovel create-project "修仙废材逆袭"
+# 记下输出中的项目ID（例如 1）
 
 # Step1: 思路讨论
-ainovel step1 --idea "一个被退婚的废材少年,偶然获得神秘戒指"
+ainovel step1 1 --idea "一个被退婚的废材少年,偶然获得神秘戒指"
 
 # Step2: 生成世界观和角色
-ainovel step2 --confirm
+ainovel step2 1
 
 # Step3: 生成大纲
-ainovel step3
+ainovel step3 1
 
 # Step4: 生成细纲
-ainovel step4
+ainovel step4 1 --batch
 
 # Step5: 生成章节
-ainovel step5 --chapters 1-10
+ainovel step5 1 --chapters 1-3
 
-# Step6: 质量检查
-ainovel step6 --chapter 1
+# 标记项目完成
+ainovel complete 1
 ```
+
+### Web 启动（FastAPI）
+
+```bash
+python -m uvicorn ainovel.web.main:app --reload
+```
+
+启动后访问：
+- 首页：`http://127.0.0.1:8000`
+- 接口文档：`http://127.0.0.1:8000/docs`
+
+> 详细启动与使用指南见：`docs/startup_usage_guide.md`
 
 ## 📋 开发路线图
 
@@ -142,4 +166,5 @@ MIT License
 
 - Issue: [GitHub Issues](项目Issue地址)
 - 文档: [详细文档](docs/)
+- 启动与使用指南: [startup_usage_guide.md](docs/startup_usage_guide.md)
 - 规划: [实施方案](/.claude/plans/inherited-twirling-sutton.md)

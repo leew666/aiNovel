@@ -17,3 +17,6 @@ EPUB/PDF 导出
 
 ainovel/utils/ 也是空目录，缺乏通用工具库
 文档与代码状态不同步（.claude/analysis-report.md 中部分标记已过时）
+
+
+在目前代码基础上，实现文风学习层 — ainovel/style/ 目录完全空白，thaught.md 中的 4-1 需求未实现

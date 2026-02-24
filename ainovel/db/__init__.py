@@ -8,14 +8,17 @@ from ainovel.db.base import Base, TimestampMixin
 from ainovel.db.novel import Novel, NovelStatus
 from ainovel.db.volume import Volume
 from ainovel.db.chapter import Chapter
+from ainovel.db.style_profile import StyleProfile
 from ainovel.db.crud import (
     CRUDBase,
     NovelCRUD,
     VolumeCRUD,
     ChapterCRUD,
+    StyleProfileCRUD,
     novel_crud,
     volume_crud,
     chapter_crud,
+    style_profile_crud,
 )
 
 __all__ = [
@@ -31,12 +34,15 @@ __all__ = [
     "NovelStatus",
     "Volume",
     "Chapter",
+    "StyleProfile",
     # CRUD
     "CRUDBase",
     "NovelCRUD",
     "VolumeCRUD",
     "ChapterCRUD",
+    "StyleProfileCRUD",
     "novel_crud",
     "volume_crud",
     "chapter_crud",
+    "style_profile_crud",
 ]

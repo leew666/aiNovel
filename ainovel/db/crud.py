@@ -136,6 +136,7 @@ class CRUDBase(Generic[ModelType]):
 from ainovel.db.novel import Novel, NovelStatus
 from ainovel.db.volume import Volume
 from ainovel.db.chapter import Chapter
+from ainovel.db.style_profile import StyleProfile
 
 
 class NovelCRUD(CRUDBase[Novel]):
@@ -210,8 +211,47 @@ class ChapterCRUD(CRUDBase[Chapter]):
         return list(session.scalars(stmt).all())
 
 
+class StyleProfileCRUD(CRUDBase[StyleProfile]):
+    """StyleProfile 模型的 CRUD 管理器"""
+
+    def get_by_novel_id(
+        self, session: Session, novel_id: int, skip: int = 0, limit: int = 100
+    ) -> List[StyleProfile]:
+        """查询小说的所有文风档案"""
+        stmt = (
+            select(StyleProfile)
+            .where(StyleProfile.novel_id == novel_id)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(session.scalars(stmt).all())
+
+    def get_active(self, session: Session, novel_id: int) -> Optional[StyleProfile]:
+        """获取小说当前激活的文风档案"""
+        stmt = select(StyleProfile).where(
+            StyleProfile.novel_id == novel_id,
+            StyleProfile.is_active == True,
+        )
+        return session.scalar(stmt)
+
+    def set_active(self, session: Session, novel_id: int, profile_id: int) -> Optional[StyleProfile]:
+        """将指定档案设为激活，同时停用同小说其他档案"""
+        # 停用所有同小说档案
+        all_profiles = self.get_by_novel_id(session, novel_id)
+        for p in all_profiles:
+            p.is_active = False
+        # 激活目标档案
+        target = self.get_by_id(session, profile_id)
+        if target and target.novel_id == novel_id:
+            target.is_active = True
+            session.flush()
+            return target
+        return None
+
+
 # ===== 全局 CRUD 实例 =====
 
 novel_crud = NovelCRUD(Novel)
 volume_crud = VolumeCRUD(Volume)
 chapter_crud = ChapterCRUD(Chapter)
+style_profile_crud = StyleProfileCRUD(StyleProfile)

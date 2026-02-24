@@ -102,9 +102,11 @@ async def health_check():
 # ============ 注册路由 ============
 
 from ainovel.web.routers import novels, workflow
+from ainovel.web.routers import style
 
 app.include_router(novels.router, prefix="/novels", tags=["小说项目"])
 app.include_router(workflow.router, prefix="/workflow", tags=["创作流程"])
+app.include_router(style.router, prefix="/workflow", tags=["文风学习"])
 # app.include_router(characters.router, prefix="/characters", tags=["角色管理"])  # 阶段2
 # app.include_router(world.router, prefix="/world", tags=["世界观管理"])  # 阶段2
 
