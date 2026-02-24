@@ -430,6 +430,26 @@ class PromptManager:
 **背景**: {background}
 **性格特征**: {traits_str if traits_str else "未设定"}"""
 
+            # 添加目标（如果有）
+            goals = char.get("goals")
+            if goals:
+                section += f"\n**当前目标**: {goals}"
+
+            # 添加当前状态（如果有）
+            current_status = char.get("current_status")
+            if current_status:
+                section += f"\n**当前状态**: {current_status}"
+
+            # 添加当前心情（如果有）
+            current_mood = char.get("current_mood")
+            if current_mood:
+                section += f"\n**当前心情**: {current_mood}"
+
+            # 添加口头禅（如果有）
+            catchphrases = char.get("catchphrases") or []
+            if catchphrases:
+                section += f"\n**口头禅**: {' / '.join(catchphrases)}"
+
             # 添加记忆信息（如果有）
             memories = char.get("memories", [])
             if memories:

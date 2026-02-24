@@ -60,7 +60,21 @@ class Character(Base, TimestampMixin):
     )
     background: Mapped[str] = mapped_column(Text, nullable=False, comment="背景故事")
 
+    # 角色卡动态状态字段（nullable，对现有数据无破坏性）
+    current_mood: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="当前心情，如：焦虑、愤怒、平静"
+    )
+    current_status: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="最近发生的事，如：刚失去师父，正在复仇路上"
+    )
+    goals: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="当前目标，如：寻找失踪的父亲"
+    )
+
     # JSON 字段：灵活存储复杂数据
+    catchphrases: Mapped[List[str]] = mapped_column(
+        JSON, default=list, nullable=False, comment="固定口头禅列表"
+    )
     personality_traits: Mapped[Dict[str, int]] = mapped_column(
         JSON, default=dict, nullable=False, comment="性格特征（属性名: 值1-10）"
     )
@@ -149,6 +163,30 @@ class Character(Base, TimestampMixin):
             self.personality_traits = {}
 
         self.personality_traits[trait_name] = min(max(value, 1), 10)
+
+    def update_mood(self, mood: str) -> None:
+        """更新当前心情"""
+        self.current_mood = mood
+
+    def update_status(self, status: str) -> None:
+        """更新最近发生的事"""
+        self.current_status = status
+
+    def update_goals(self, goals: str) -> None:
+        """更新当前目标"""
+        self.goals = goals
+
+    def add_catchphrase(self, phrase: str) -> None:
+        """添加口头禅（去重）"""
+        if self.catchphrases is None:
+            self.catchphrases = []
+        if phrase not in self.catchphrases:
+            self.catchphrases.append(phrase)
+
+    def remove_catchphrase(self, phrase: str) -> None:
+        """删除口头禅"""
+        if self.catchphrases:
+            self.catchphrases = [p for p in self.catchphrases if p != phrase]
 
     def get_mbti_description(self) -> str:
         """获取 MBTI 人格描述"""

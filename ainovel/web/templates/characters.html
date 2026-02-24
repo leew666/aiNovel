@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - 角色卡{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/novels/view/{{ novel.id }}" style="color: #3498db; text-decoration: none;">← 返回项目详情</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>🎭 角色卡 · {{ novel.title }}</h2>
+        <span style="color: #7f8c8d; font-size: 13px;">共 {{ characters|length }} 个角色</span>
+    </div>
+</div>
+
+{% if not characters %}
+<div class="card" style="text-align: center; color: #7f8c8d; padding: 40px;">
+    <p>暂无角色，请先完成创作流程步骤 2（世界观与角色生成）</p>
+    <a href="/workflow/{{ novel.id }}" class="btn" style="margin-top: 16px;">进入创作流程</a>
+</div>
+{% else %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+    {% for char in characters %}
+    <div class="card" style="position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+                <h3 style="font-size: 18px; color: #2c3e50;">{{ char.name }}</h3>
+                <span style="font-size: 12px; background: #3498db; color: white; padding: 2px 8px; border-radius: 10px;">{{ char.mbti.value }}</span>
+            </div>
+            <a href="/characters/{{ char.id }}/edit" class="btn" style="font-size: 12px; padding: 6px 12px;">编辑</a>
+        </div>
+
+        {% if char.current_mood or char.current_status %}
+        <div style="background: #f8f9fa; border-radius: 4px; padding: 10px; margin-bottom: 10px; font-size: 13px;">
+            {% if char.current_mood %}
+            <div><span style="color: #7f8c8d;">心情：</span>{{ char.current_mood }}</div>
+            {% endif %}
+            {% if char.current_status %}
+            <div style="margin-top: 4px;"><span style="color: #7f8c8d;">状态：</span>{{ char.current_status }}</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if char.goals %}
+        <div style="font-size: 13px; margin-bottom: 8px;">
+            <span style="color: #7f8c8d;">目标：</span>{{ char.goals }}
+        </div>
+        {% endif %}
+
+        {% if char.catchphrases %}
+        <div style="font-size: 13px; margin-bottom: 8px;">
+            <span style="color: #7f8c8d;">口头禅：</span>
+            {% for phrase in char.catchphrases %}
+            <span style="background: #ecf0f1; padding: 2px 6px; border-radius: 3px; margin-right: 4px;">「{{ phrase }}」</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="font-size: 13px; color: #555; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">
+            {{ char.background[:80] }}{% if char.background|length > 80 %}…{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -280,3 +280,76 @@ class CharacterDatabase:
             删除成功返回 True，角色不存在返回 False
         """
         return character_crud.delete(self.session, character_id)
+
+    def update_character(self, character_id: int, **kwargs) -> Character:
+        """
+        通用更新接口，支持更新任意角色字段
+
+        Args:
+            character_id: 角色 ID
+            **kwargs: 要更新的字段和值（支持 name/background/mbti/personality_traits/
+                      current_mood/current_status/goals/catchphrases）
+
+        Returns:
+            更新后的角色实例
+
+        Raises:
+            ValueError: 如果角色不存在
+        """
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+
+        allowed = {"name", "background", "mbti", "personality_traits",
+                   "current_mood", "current_status", "goals", "catchphrases"}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(character, key, value)
+
+        self.session.flush()
+        return character
+
+    def update_mood(self, character_id: int, mood: str) -> Character:
+        """更新角色当前心情"""
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+        character.update_mood(mood)
+        self.session.flush()
+        return character
+
+    def update_status(self, character_id: int, status: str) -> Character:
+        """更新角色最近发生的事"""
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+        character.update_status(status)
+        self.session.flush()
+        return character
+
+    def update_goals(self, character_id: int, goals: str) -> Character:
+        """更新角色当前目标"""
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+        character.update_goals(goals)
+        self.session.flush()
+        return character
+
+    def add_catchphrase(self, character_id: int, phrase: str) -> Character:
+        """为角色添加口头禅"""
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+        character.add_catchphrase(phrase)
+        self.session.flush()
+        return character
+
+    def remove_catchphrase(self, character_id: int, phrase: str) -> Character:
+        """删除角色口头禅"""
+        character = self.get_character(character_id)
+        if character is None:
+            raise ValueError(f"角色 ID {character_id} 不存在")
+        character.remove_catchphrase(phrase)
+        self.session.flush()
+        return character

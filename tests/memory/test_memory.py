@@ -246,3 +246,101 @@ def test_delete_world_data(session, novel):
 
     assert result is True
     assert world_db.get_world_data(location.id) is None
+
+
+# ============ 角色卡新字段测试 ============
+
+def test_update_mood(session, novel):
+    """测试更新角色心情"""
+    char_db = CharacterDatabase(session)
+    character = char_db.create_character(
+        novel_id=novel.id, name="心情测试", mbti=MBTIType.INTJ, background="测试"
+    )
+    char_db.update_mood(character.id, "焦虑")
+    assert character.current_mood == "焦虑"
+
+
+def test_update_status(session, novel):
+    """测试更新角色当前状态"""
+    char_db = CharacterDatabase(session)
+    character = char_db.create_character(
+        novel_id=novel.id, name="状态测试", mbti=MBTIType.ENFP, background="测试"
+    )
+    char_db.update_status(character.id, "刚失去师父，正在复仇路上")
+    assert character.current_status == "刚失去师父，正在复仇路上"
+
+
+def test_update_goals(session, novel):
+    """测试更新角色目标"""
+    char_db = CharacterDatabase(session)
+    character = char_db.create_character(
+        novel_id=novel.id, name="目标测试", mbti=MBTIType.ENTJ, background="测试"
+    )
+    char_db.update_goals(character.id, "寻找失踪的父亲")
+    assert character.goals == "寻找失踪的父亲"
+
+
+def test_catchphrases(session, novel):
+    """测试口头禅增删去重"""
+    char_db = CharacterDatabase(session)
+    character = char_db.create_character(
+        novel_id=novel.id, name="口头禅测试", mbti=MBTIType.ESTP, background="测试"
+    )
+
+    char_db.add_catchphrase(character.id, "天下无敌")
+    char_db.add_catchphrase(character.id, "哼，小把戏")
+    char_db.add_catchphrase(character.id, "天下无敌")  # 重复，应忽略
+
+    assert len(character.catchphrases) == 2
+    assert "天下无敌" in character.catchphrases
+    assert "哼，小把戏" in character.catchphrases
+
+    char_db.remove_catchphrase(character.id, "天下无敌")
+    assert len(character.catchphrases) == 1
+    assert "天下无敌" not in character.catchphrases
+
+
+def test_update_character_generic(session, novel):
+    """测试通用更新接口"""
+    char_db = CharacterDatabase(session)
+    character = char_db.create_character(
+        novel_id=novel.id, name="通用更新测试", mbti=MBTIType.INFJ, background="原始背景"
+    )
+
+    char_db.update_character(
+        character.id,
+        background="更新后的背景",
+        current_mood="平静",
+        goals="守护家园",
+        catchphrases=["我会保护你", "绝不退缩"],
+    )
+
+    assert character.background == "更新后的背景"
+    assert character.current_mood == "平静"
+    assert character.goals == "守护家园"
+    assert character.catchphrases == ["我会保护你", "绝不退缩"]
+
+
+def test_format_character_info_with_new_fields():
+    """测试 format_character_info 输出包含新字段"""
+    from ainovel.core.prompt_manager import PromptManager
+
+    char_data = {
+        "name": "张三",
+        "mbti": "INTJ",
+        "background": "天才剑客",
+        "personality_traits": {"勇气": 9},
+        "goals": "寻找失踪的父亲",
+        "current_status": "刚失去师父",
+        "current_mood": "悲痛",
+        "catchphrases": ["天下无敌", "哼，小把戏"],
+        "memories": [],
+    }
+
+    result = PromptManager.format_character_info([char_data])
+
+    assert "寻找失踪的父亲" in result
+    assert "刚失去师父" in result
+    assert "悲痛" in result
+    assert "天下无敌" in result
+    assert "哼，小把戏" in result

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}编辑角色 · {{ character.name }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/novels/{{ novel.id }}/characters" style="color: #3498db; text-decoration: none;">← 返回角色列表</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <h2 style="margin-bottom: 0;">🎭 {{ character.name }}</h2>
+        <span style="font-size: 13px; background: #3498db; color: white; padding: 3px 10px; border-radius: 10px;">{{ character.mbti.value }}</span>
+        <span style="font-size: 13px; color: #7f8c8d;">{{ character.get_mbti_description() }}</span>
+    </div>
+
+    <div id="save-result"></div>
+
+    <form hx-post="/characters/{{ character.id }}/edit"
+          hx-target="#save-result"
+          hx-swap="innerHTML">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <!-- 左列 -->
+            <div>
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">背景故事</label>
+                <textarea name="background" style="min-height: 120px;">{{ character.background }}</textarea>
+
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">当前目标</label>
+                <input type="text" name="goals" value="{{ character.goals or '' }}" placeholder="如：寻找失踪的父亲">
+
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">最近发生的事（当前状态）</label>
+                <textarea name="current_status" style="min-height: 80px;" placeholder="如：刚失去师父，正在复仇路上">{{ character.current_status or '' }}</textarea>
+            </div>
+
+            <!-- 右列 -->
+            <div>
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">当前心情</label>
+                <input type="text" name="current_mood" value="{{ character.current_mood or '' }}" placeholder="如：焦虑、愤怒、平静">
+
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">固定口头禅（每行一条）</label>
+                <textarea name="catchphrases" style="min-height: 100px;" placeholder="天下无敌&#10;哼，小把戏">{{ (character.catchphrases or []) | join('\n') }}</textarea>
+
+                <!-- 性格特征只读展示 -->
+                {% if character.personality_traits %}
+                <label style="display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: 600;">性格特征</label>
+                <div style="background: #f8f9fa; border-radius: 4px; padding: 10px;">
+                    {% for trait, value in character.personality_traits.items() %}
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                        <span style="font-size: 13px; width: 60px; color: #555;">{{ trait }}</span>
+                        <div style="flex: 1; background: #ddd; border-radius: 3px; height: 6px;">
+                            <div style="width: {{ value * 10 }}%; background: #3498db; height: 6px; border-radius: 3px;"></div>
+                        </div>
+                        <span style="font-size: 12px; color: #7f8c8d; width: 24px;">{{ value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 记忆列表只读展示 -->
+        {% set high_memories = character.memories | selectattr('importance', 'equalto', 'high') | list %}
+        {% if high_memories %}
+        <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 16px;">
+            <label style="display: block; font-size: 13px; color: #555; margin-bottom: 10px; font-weight: 600;">重要记忆</label>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                {% for mem in high_memories[:5] %}
+                <div style="background: #fff8e1; border-left: 3px solid #f39c12; padding: 8px 12px; border-radius: 0 4px 4px 0; font-size: 13px;">
+                    <span style="font-weight: 600; color: #e67e22;">{{ mem.event }}</span>
+                    <span style="color: #555; margin-left: 8px;">{{ mem.content }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 20px; display: flex; gap: 12px; align-items: center;">
+            <button type="submit" class="btn btn-success">保存角色卡</button>
+            <span class="htmx-indicator" style="color: #7f8c8d; font-size: 13px;">保存中…</span>
+        </div>
+    </form>
+</div>
+{% endblock %}
