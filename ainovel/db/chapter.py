@@ -40,6 +40,9 @@ class Chapter(Base, TimestampMixin):
     detail_outline: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="步骤4：详细细纲内容"
     )
+    quality_report: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="步骤6：质量检查报告（JSON格式）"
+    )
 
     # 关系：多对一，多个章节属于一个分卷
     volume: Mapped["Volume"] = relationship("Volume", back_populates="chapters")

@@ -95,3 +95,23 @@ class Step5Response(BaseModel):
     chapter_title: str
     content: str
     stats: dict[str, Any]
+
+
+class Step6Response(BaseModel):
+    """步骤6：质量检查响应"""
+
+    novel_id: int
+    workflow_status: str
+    chapter_id: int
+    chapter_title: str
+    quality_report: dict[str, Any]
+    stats: dict[str, Any]
+
+
+class Step6BatchResponse(BaseModel):
+    """步骤6：批量质量检查响应"""
+
+    novel_id: int
+    workflow_status: str
+    total_chapters: int
+    results: list[dict[str, Any]]

@@ -116,6 +116,26 @@ async def step5_writing(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/chapter/{chapter_id}/step6", response_model=Step6Response)
+async def step6_quality_check(chapter_id: int, session: SessionDep, orch: OrchestratorDep):
+    """步骤6：质量检查（单章节）"""
+    try:
+        result = orch.step_6_quality_check(session, chapter_id)
+        return Step6Response(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{novel_id}/step6/batch", response_model=Step6BatchResponse)
+async def step6_batch(novel_id: int, session: SessionDep, orch: OrchestratorDep):
+    """步骤6：批量质量检查所有已生成章节"""
+    try:
+        result = orch.step_6_batch_quality_check(session, novel_id)
+        return Step6BatchResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/{novel_id}/complete", response_model=dict)
 async def mark_completed(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """标记小说创作完成"""

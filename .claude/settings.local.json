@@ -11,7 +11,14 @@
       "Bash(env:*)",
       "Bash(python:*)",
       "Bash(PYTHONPATH=/Users/lee/Documents/github/me/aiNovel python:*)",
-      "mcp__sequential-thinking__sequentialthinking"
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(__NEW_LINE_c8e619f938b8b0ef__ echo \"=== sequential-thinking ===\")",
+      "Bash(npx:*)",
+      "Bash(__NEW_LINE_d3bad52ab737ed59__ echo \"=== context7 ===\")",
+      "Bash(__NEW_LINE_1bce2f6c0b3c6263__ echo \"=== playwright ===\")",
+      "Bash(find:*)",
+      "Read(//Users/lee/Documents/github/me/aiNovel/**)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

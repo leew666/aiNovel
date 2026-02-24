@@ -13,6 +13,7 @@ from ainovel.db.crud import novel_crud
 from ainovel.workflow.generators.planning_generator import PlanningGenerator
 from ainovel.workflow.generators.world_building_generator import WorldBuildingGenerator
 from ainovel.workflow.generators.detail_outline_generator import DetailOutlineGenerator
+from ainovel.workflow.generators.quality_check_generator import QualityCheckGenerator
 from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
 from ainovel.memory.character_db import CharacterDatabase
@@ -50,6 +51,7 @@ class WorkflowOrchestrator:
         self.planning_gen = PlanningGenerator(llm_client)
         self.world_building_gen = WorldBuildingGenerator(llm_client, character_db, world_db)
         self.detail_outline_gen = DetailOutlineGenerator(llm_client)
+        self.quality_check_gen = QualityCheckGenerator(llm_client)
 
     def get_workflow_status(self, session: Session, novel_id: int) -> Dict[str, Any]:
         """
@@ -361,6 +363,72 @@ class WorkflowOrchestrator:
             session.commit()
 
         result["novel_id"] = novel.id
+        result["workflow_status"] = novel.workflow_status.value
+        return result
+
+    def step_6_quality_check(
+        self,
+        session: Session,
+        chapter_id: int,
+    ) -> Dict[str, Any]:
+        """
+        步骤6：对指定章节进行质量检查
+
+        Args:
+            session: 数据库会话
+            chapter_id: 章节ID
+
+        Returns:
+            检查结果
+        """
+        from ainovel.db.crud import chapter_crud
+
+        chapter = chapter_crud.get_by_id(session, chapter_id)
+        if not chapter:
+            raise ValueError(f"章节不存在: {chapter_id}")
+
+        novel = chapter.volume.novel
+
+        result = self.quality_check_gen.check_and_save(
+            session=session, chapter_id=chapter_id
+        )
+
+        # 更新小说状态（第一次质量检查时）
+        if novel.current_step < 6:
+            novel.workflow_status = WorkflowStatus.QUALITY_CHECK
+            novel.current_step = 6
+            session.commit()
+
+        result["novel_id"] = novel.id
+        result["workflow_status"] = novel.workflow_status.value
+        result["chapter_id"] = chapter_id
+        result["chapter_title"] = chapter.title
+        return result
+
+    def step_6_batch_quality_check(
+        self, session: Session, novel_id: int
+    ) -> Dict[str, Any]:
+        """
+        步骤6：批量检查小说所有已生成章节
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+
+        Returns:
+            批量检查结果
+        """
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        result = self.quality_check_gen.batch_check(session=session, novel_id=novel_id)
+
+        # 更新状态
+        novel.workflow_status = WorkflowStatus.QUALITY_CHECK
+        novel.current_step = 6
+        session.commit()
+
         result["workflow_status"] = novel.workflow_status.value
         return result
 

@@ -229,6 +229,66 @@ class PromptManager:
 请直接输出章节正文内容，不要包含任何格式说明或元数据。
 """
 
+    # 步骤6：质量检查提示词模板
+    QUALITY_CHECK_PROMPT = """你是一位专业的小说编辑。请对以下章节内容进行全面的质量检查，从8个维度评估并给出具体修改建议。
+
+## 小说基本信息
+- 标题: {title}
+- 当前分卷: {volume_title}
+- 当前章节: 第{chapter_order}章 - {chapter_title}
+
+## 章节梗概
+{chapter_summary}
+
+## 涉及角色
+{character_info}
+
+## 前情回顾
+{previous_context}
+
+## 待检查的章节内容
+{chapter_content}
+
+## 检查维度
+1. **情节连贯性**：与前情是否衔接自然，逻辑是否通顺
+2. **角色一致性**：角色行为、语言是否符合其性格设定（MBTI）
+3. **世界观自洽**：是否违反已建立的世界规则
+4. **节奏控制**：叙事节奏是否合适，有无拖沓或跳跃
+5. **对话质量**：对话是否自然，是否符合角色身份
+6. **描写细腻度**：场景、动作、心理描写是否到位
+7. **伏笔与悬念**：是否有效设置或呼应伏笔
+8. **文字质量**：用词是否准确，有无语病或重复
+
+## 输出格式（JSON）
+请按照以下JSON格式输出质量报告：
+```json
+{{
+  "overall_score": 85,
+  "dimension_scores": {{
+    "情节连贯性": 90,
+    "角色一致性": 85,
+    "世界观自洽": 95,
+    "节奏控制": 80,
+    "对话质量": 85,
+    "描写细腻度": 75,
+    "伏笔与悬念": 80,
+    "文字质量": 90
+  }},
+  "issues": [
+    {{
+      "severity": "critical/major/minor",
+      "dimension": "检查维度名称",
+      "location": "问题位置描述（如：第3段，对话部分）",
+      "description": "问题描述",
+      "suggestion": "修改建议"
+    }}
+  ],
+  "highlights": ["亮点1", "亮点2"],
+  "summary": "总体评价（100字以内）"
+}}
+```
+"""
+
     # 前情回顾生成提示词模板
     CONTEXT_SUMMARY_PROMPT = """请将以下章节内容压缩为简短的摘要，保留关键情节和重要信息。
 
@@ -430,6 +490,45 @@ class PromptManager:
             完整的提示词
         """
         return cls.WORLD_BUILDING_PROMPT.format(planning_content=planning_content)
+
+    @classmethod
+    def generate_quality_check_prompt(
+        cls,
+        title: str,
+        volume_title: str,
+        chapter_order: int,
+        chapter_title: str,
+        chapter_summary: str,
+        chapter_content: str,
+        character_list: List[Dict[str, Any]],
+        previous_context: str,
+    ) -> str:
+        """
+        生成质量检查提示词
+
+        Args:
+            title: 小说标题
+            volume_title: 分卷标题
+            chapter_order: 章节序号
+            chapter_title: 章节标题
+            chapter_summary: 章节梗概
+            chapter_content: 章节正文内容
+            character_list: 涉及角色列表
+            previous_context: 前情回顾
+
+        Returns:
+            完整的提示词
+        """
+        return cls.QUALITY_CHECK_PROMPT.format(
+            title=title,
+            volume_title=volume_title,
+            chapter_order=chapter_order,
+            chapter_title=chapter_title,
+            chapter_summary=chapter_summary,
+            chapter_content=chapter_content,
+            character_info=cls.format_character_info(character_list),
+            previous_context=previous_context or "本章为开篇，无前情",
+        )
 
     @classmethod
     def generate_detail_outline_prompt(

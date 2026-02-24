@@ -28,6 +28,7 @@ class WorkflowStatus(str, Enum):
     OUTLINE = "outline"  # 大纲生成中（步骤3：生成作品大纲）
     DETAIL_OUTLINE = "detail_outline"  # 细纲生成中（步骤4：生成作品细纲）
     WRITING = "writing"  # 写作中（步骤5：创作章节内容）
+    QUALITY_CHECK = "quality_check"  # 质量检查中（步骤6：检查章节质量）
     COMPLETED = "completed"  # 已完成
 
 
