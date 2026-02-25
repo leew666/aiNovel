@@ -386,6 +386,89 @@ async def vectorize_novel(
         raise HTTPException(status_code=500, detail=f"向量化失败: {e}")
 
 
+# ============ KB2 专项分析 API ============
+
+
+class AnalysisRequest(BaseModel):
+    chapter_range: str | None = None  # 如 "1-10"，None 表示全部
+
+
+@router.post("/{novel_id}/analyze/satisfaction", summary="爽点专项分析（KB2 帮回系统）")
+async def analyze_satisfaction(
+    novel_id: int,
+    request_data: AnalysisRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """分析章节爽点密度、类型分布与三高评分"""
+    try:
+        return orch.analyze_satisfaction(session, novel_id, request_data.chapter_range)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{novel_id}/analyze/rhythm", summary="节奏专项分析（KB2 帮回系统）")
+async def analyze_rhythm(
+    novel_id: int,
+    request_data: AnalysisRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """分析快/中/慢场景比例与快慢交替合理性"""
+    try:
+        return orch.analyze_rhythm(session, novel_id, request_data.chapter_range)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{novel_id}/analyze/conflict", summary="冲突专项分析（KB2 帮回系统）")
+async def analyze_conflict(
+    novel_id: int,
+    request_data: AnalysisRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """分析明暗线强度、四维升级与不完全胜利"""
+    try:
+        return orch.analyze_conflict(session, novel_id, request_data.chapter_range)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class CharacterAnalysisRequest(BaseModel):
+    character_name: str
+    chapter_range: str | None = None
+
+
+@router.post("/{novel_id}/analyze/character", summary="人设专项检查（KB2 帮回系统）")
+async def analyze_character(
+    novel_id: int,
+    request_data: CharacterAnalysisRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """检查角色价值观/行为/决策/语言四维一致性与成长弧光"""
+    try:
+        return orch.analyze_character(
+            session, novel_id, request_data.character_name, request_data.chapter_range
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{novel_id}/analyze/opening", summary="开篇质量专项检查（KB2 黄金开篇五大铁律）")
+async def analyze_opening(
+    novel_id: int,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """检查前3章是否符合黄金开篇五大铁律"""
+    try:
+        return orch.analyze_opening(session, novel_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ============ HTML 视图路由 ============
 
 

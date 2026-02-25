@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from ainovel.web.dependencies import SessionDep
+from ainovel.web.dependencies import SessionDep, OrchestratorDep
 from ainovel.web.schemas.novel import (
     NovelCreate,
     NovelUpdate,
@@ -248,3 +248,27 @@ async def view_novel(novel_id: int, request: Request, session: SessionDep):
             "total_words": total_words,
         },
     )
+
+
+@router.post("/{novel_id:int}/title-synopsis", summary="生成书名与简介（KB2 第十一步）")
+async def generate_title_synopsis(novel_id: int, session: SessionDep, orchestrator: OrchestratorDep):
+    """
+    为小说生成候选书名列表和黄金结构简介
+
+    Returns:
+        {
+            "titles": [{"name": str, "scores": {...}, "reason": str}],
+            "synopsis": {"hook": str, "summary": str, "cliffhanger": str, "full_text": str},
+            "marketing_keywords": [str],
+            "target_audience": str,
+            "usage": {...},
+            "cost": float
+        }
+    """
+    try:
+        result = orchestrator.generate_title_synopsis(session, novel_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

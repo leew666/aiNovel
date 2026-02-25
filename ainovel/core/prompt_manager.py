@@ -1138,3 +1138,457 @@ class PromptManager:
             world_info=cls.format_world_info(world_data_list),
             previous_context=previous_context or "本章为开篇，无前情",
         )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：书名与简介生成（第十一步）
+    # 理论依据：
+    #   - ToT（Tree of Thoughts）：生成5个候选书名并三维评分
+    #   - 黄金结构简介模板：开篇定调 + 核心梗概 + 钩子收尾
+    # ─────────────────────────────────────────────────────────────────────────
+    TITLE_SYNOPSIS_PROMPT = """你是一位顶级商业网文营销编辑，精通番茄、起点等平台的爆款规律。
+请根据小说的核心信息，生成最具吸引力的书名候选和简介。
+
+## 小说信息
+- 标题（草稿）：{draft_title}
+- 类型：{genre}
+- 情节标签：{plots}
+- 故事核心：{story_core}
+- 主角设定：{protagonist}
+- 核心爽点：{key_appeal}
+
+## 任务一：书名生成（ToT多路径探索）
+
+生成5个候选书名，每个书名必须：
+- 通俗易懂，5字以内优先
+- 让读者一眼看出类型和爽点
+- 避免生僻字和拗口词组
+
+对每个书名从三个维度评分（0-10分）：
+- 吸引力：能否激发点击欲望
+- 类型匹配：是否符合目标类型风格
+- 记忆度：是否朗朗上口、易于传播
+
+## 任务二：简介生成（黄金结构模板）
+
+按以下三段式结构生成简介：
+1. **开篇定调**（1句话）：点明最大反差或核心梗，制造强烈信息差
+2. **核心梗概**（3-5句话）：介绍主线和人设亮点，不剧透关键转折
+3. **钩子收尾**（1句话）：开放式问题或高能预告，激发好奇心
+
+## 输出格式（严格JSON）
+```json
+{{
+  "titles": [
+    {{
+      "name": "书名",
+      "scores": {{"appeal": 8, "genre_fit": 9, "memorability": 7}},
+      "reason": "推荐理由（20字以内）"
+    }}
+  ],
+  "synopsis": {{
+    "hook": "开篇定调（1句话）",
+    "summary": "核心梗概（3-5句话）",
+    "cliffhanger": "钩子收尾（1句话）",
+    "full_text": "完整简介（三段合并）"
+  }},
+  "marketing_keywords": ["关键词1", "关键词2", "关键词3"],
+  "target_audience": "目标读者群体描述"
+}}
+```"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：爽点专项分析（帮回系统）
+    # 理论依据：第三法则爽感工程学 —— 高对比 + 高密度 + 高情绪
+    # ─────────────────────────────────────────────────────────────────────────
+    SATISFACTION_ANALYSIS_PROMPT = """你是一位专业的商业网文分析师，精通爽感工程学。
+请对以下章节内容进行爽点专项分析，基于【第三法则：爽感工程学】给出量化报告。
+
+## 待分析内容
+章节范围：{chapter_range}
+章节总字数：约{total_words}字
+
+{chapters_content}
+
+## 分析维度
+
+### 一、爽点统计
+- 识别每个爽点的位置（第X章第Y段）、类型、强度
+- 爽点类型：打脸爽 / 装逼爽 / 复仇爽 / 获得爽 / 逆袭爽 / 揭秘爽 / 升级爽 / 其他
+- 密度标准：小爽点每3-5千字1个，大爽点每10-15章1个
+
+### 二、三高质量评估
+- 高对比：爽点前的憋屈铺垫是否充分（0-10分）
+- 高密度：爽点频率是否达标（0-10分）
+- 高情绪：爽点触发的情绪冲击力（0-10分）
+
+### 三、问题诊断与优化建议
+
+## 输出格式（严格JSON）
+```json
+{{
+  "statistics": {{
+    "total_satisfaction_points": 0,
+    "small_points": 0,
+    "big_points": 0,
+    "density_per_10k_words": 0.0,
+    "type_distribution": {{
+      "打脸爽": 0, "装逼爽": 0, "复仇爽": 0, "获得爽": 0,
+      "逆袭爽": 0, "揭秘爽": 0, "升级爽": 0, "其他": 0
+    }}
+  }},
+  "quality_scores": {{
+    "high_contrast": {{"score": 0, "analysis": ""}},
+    "high_density": {{"score": 0, "analysis": ""}},
+    "high_emotion": {{"score": 0, "analysis": ""}},
+    "total": 0
+  }},
+  "issues": [
+    {{"description": "", "severity": "high|medium|low", "location": ""}}
+  ],
+  "suggestions": [
+    {{"option": "A", "description": "", "expected_effect": ""}}
+  ],
+  "recommended_action": ""
+}}
+```"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：节奏专项分析（帮回系统）
+    # 理论依据：第五法则节奏控制 —— 快慢交替、张弛有度
+    # ─────────────────────────────────────────────────────────────────────────
+    RHYTHM_ANALYSIS_PROMPT = """你是一位专业的叙事节奏分析师，精通商业网文的节奏控制法则。
+请对以下章节内容进行节奏专项分析，基于【第五法则：节奏控制】给出量化报告。
+
+## 待分析内容
+章节范围：{chapter_range}
+章节总字数：约{total_words}字
+
+{chapters_content}
+
+## 分析维度
+
+### 一、节奏分布统计
+将每章归类为：
+- 快节奏：高强度冲突、战斗、追逐、对峙
+- 中节奏：对话推进、信息揭露、关系发展
+- 慢节奏：心理描写、环境铺垫、情感沉淀
+
+### 二、节奏质量评估
+- 快慢交替合理性：是否避免连续快/慢节奏（0-10分）
+- 高潮节奏处理：高潮前是否有足够蓄力（0-10分）
+- 过渡节奏处理：过渡章节是否简洁不拖沓（0-10分）
+
+### 三、问题诊断与优化建议
+
+## 输出格式（严格JSON）
+```json
+{{
+  "distribution": {{
+    "fast_chapters": [],
+    "medium_chapters": [],
+    "slow_chapters": [],
+    "fast_ratio": 0.0,
+    "medium_ratio": 0.0,
+    "slow_ratio": 0.0
+  }},
+  "quality_scores": {{
+    "alternation": {{"score": 0, "analysis": ""}},
+    "climax_buildup": {{"score": 0, "analysis": ""}},
+    "transition": {{"score": 0, "analysis": ""}},
+    "total": 0
+  }},
+  "issues": [
+    {{"description": "", "severity": "high|medium|low", "location": ""}}
+  ],
+  "suggestions": [
+    {{"description": "", "expected_effect": ""}}
+  ]
+}}
+```"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：冲突专项分析（帮回系统）
+    # 理论依据：第二法则冲突递增引擎 —— 四维升级 + 明暗双线 + 不完全胜利
+    # ─────────────────────────────────────────────────────────────────────────
+    CONFLICT_ANALYSIS_PROMPT = """你是一位专业的叙事冲突分析师，精通商业网文的冲突设计法则。
+请对以下章节内容进行冲突专项分析，基于【第二法则：冲突递增引擎】给出量化报告。
+
+## 待分析内容
+章节范围：{chapter_range}
+章节总字数：约{total_words}字
+
+{chapters_content}
+
+## 分析维度
+
+### 一、冲突强度统计
+- 明线冲突：外部对抗（战斗、竞争、追杀等）强度趋势
+- 暗线冲突：内部矛盾（价值观、情感、身份认同等）强度趋势
+- 冲突递增趋势：是否呈上升态势
+
+### 二、四维升级模型评估
+- 力量维度：敌人/障碍的实力是否递增（0-10分）
+- 情感维度：主角的情感代价是否递增（0-10分）
+- 范围维度：冲突影响范围是否扩大（0-10分）
+- 时间维度：解决冲突的紧迫性是否递增（0-10分）
+
+### 三、不完全胜利原则检验
+每次胜利是否都埋下新的隐患或代价
+
+### 四、问题诊断与优化建议
+
+## 输出格式（严格JSON）
+```json
+{{
+  "conflict_intensity": {{
+    "main_line_trend": "ascending|flat|descending",
+    "sub_line_trend": "ascending|flat|descending",
+    "main_line_score": 0,
+    "sub_line_score": 0
+  }},
+  "four_dimension_scores": {{
+    "power": {{"score": 0, "analysis": ""}},
+    "emotion": {{"score": 0, "analysis": ""}},
+    "scope": {{"score": 0, "analysis": ""}},
+    "urgency": {{"score": 0, "analysis": ""}},
+    "total": 0
+  }},
+  "incomplete_victory_check": {{
+    "passed": true,
+    "violations": []
+  }},
+  "issues": [
+    {{"description": "", "severity": "high|medium|low"}}
+  ],
+  "suggestions": [
+    {{"description": "", "expected_effect": ""}}
+  ]
+}}
+```"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：人设专项检查（帮回系统）
+    # 理论依据：第四法则人物基因锚定 —— 三层人格 + 行为一致性 + 成长弧光
+    # ─────────────────────────────────────────────────────────────────────────
+    CHARACTER_CHECK_PROMPT = """你是一位专业的角色一致性审校员，精通人物心理学和叙事人设管理。
+请对指定角色进行全文人设专项检查，基于【第四法则：人物基因锚定理论】给出量化报告。
+
+## 待检查角色
+角色名：{character_name}
+角色档案：
+{character_profile}
+
+## 待检查内容（涉及该角色的所有章节）
+{chapters_content}
+
+## 检查维度
+
+### 一、四维一致性检查
+- 核心价值观一致性：行为决策是否始终符合其价值观锚点（0-10分）
+- 行为准则一致性：面对类似情境的反应模式是否稳定（0-10分）
+- 决策逻辑一致性：每个重要决策是否有充分动机支撑（0-10分）
+- 语言风格一致性：对话用词、语气、口头禅是否稳定（0-10分）
+
+### 二、成长弧光分析
+- 起点状态 → 当前状态的变化轨迹
+- 变化是否有充分的情节支撑（非突变）
+
+### 三、问题诊断（人格漂移检测）
+标注每处人设偏差的位置和原因
+
+## 输出格式（严格JSON）
+```json
+{{
+  "consistency_scores": {{
+    "core_values": {{"score": 0, "analysis": ""}},
+    "behavior_pattern": {{"score": 0, "analysis": ""}},
+    "decision_logic": {{"score": 0, "analysis": ""}},
+    "speech_style": {{"score": 0, "analysis": ""}},
+    "total": 0
+  }},
+  "growth_arc": {{
+    "start_state": "",
+    "current_state": "",
+    "trajectory": "",
+    "is_reasonable": true,
+    "reasoning": ""
+  }},
+  "issues": [
+    {{"description": "", "location": "", "severity": "high|medium|low"}}
+  ],
+  "suggestions": [
+    {{"description": ""}}
+  ]
+}}
+```"""
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # KB2 v5.0 融合：开篇质量专项检查（黄金开篇五大铁律）
+    # 理论依据：前3章是留存率最关键的区间，五大铁律决定读者是否继续阅读
+    # ─────────────────────────────────────────────────────────────────────────
+    OPENING_CHECK_PROMPT = """你是一位专业的商业网文开篇质量审核员，精通读者留存心理学。
+请对小说前三章进行开篇专项检查，依据【黄金开篇五大铁律】给出逐项评估报告。
+
+## 待检查内容（前三章）
+{opening_chapters}
+
+## 五大铁律检查
+
+### 铁律1：动态场景切入
+- 标准：第一章必须从充满冲突、动作或激烈对话的动态事件中直接切入
+- 禁止：静止场景、大段环境描写、人物自我介绍作为开头
+- 判断：第一段/第一句是否立即制造张力？
+
+### 铁律2：核心冲突前置
+- 标准：第一章内必须抛出主角面临的核心冲突或巨大困境
+- 目的：让读者立刻明白故事的看点所在
+- 判断：读者读完第一章是否清楚"主角面临什么问题"？
+
+### 铁律3：避免信息轰炸
+- 标准：通过角色的行动和对话"滴灌式"透露信息
+- 禁止：开篇大篇幅介绍世界观、人物背景、历史设定
+- 判断：前三章是否有超过500字的连续背景介绍段落？
+
+### 铁律4：限制出场人数
+- 标准：第一章有名有姓、参与核心冲突的角色不超过3人
+- 目的：确保焦点集中在主角身上
+- 判断：统计第一章命名角色数量
+
+### 铁律5：快速展现金手指
+- 标准：在主角遇到第一个危机后，第二章或第三章内展现主角的特殊能力/优势
+- 目的：给读者初步的爽感，建立"主角不一般"的期待
+- 判断：前三章是否有主角展现特殊能力/优势的场景？
+
+## 输出格式（严格JSON）
+```json
+{{
+  "rules": {{
+    "dynamic_opening": {{
+      "passed": true,
+      "score": 0,
+      "evidence": "引用原文关键句",
+      "issue": "问题描述（如通过则为空）",
+      "suggestion": "改进建议（如通过则为空）"
+    }},
+    "conflict_first": {{
+      "passed": true,
+      "score": 0,
+      "evidence": "",
+      "issue": "",
+      "suggestion": ""
+    }},
+    "no_info_dump": {{
+      "passed": true,
+      "score": 0,
+      "evidence": "",
+      "issue": "",
+      "suggestion": ""
+    }},
+    "limited_characters": {{
+      "passed": true,
+      "score": 0,
+      "named_characters": [],
+      "character_count": 0,
+      "issue": "",
+      "suggestion": ""
+    }},
+    "quick_power_reveal": {{
+      "passed": true,
+      "score": 0,
+      "evidence": "",
+      "issue": "",
+      "suggestion": ""
+    }}
+  }},
+  "overall_score": 0,
+  "passed_count": 0,
+  "summary": "总体评价（100字以内）",
+  "priority_fixes": ["最优先修改项1", "最优先修改项2"]
+}}
+```"""
+
+    @classmethod
+    def generate_title_synopsis_prompt(
+        cls,
+        draft_title: str,
+        genre: str,
+        plots: str,
+        story_core: str,
+        protagonist: str,
+        key_appeal: str,
+    ) -> str:
+        """生成书名与简介提示词（KB2 第十一步）"""
+        return cls.TITLE_SYNOPSIS_PROMPT.format(
+            draft_title=draft_title,
+            genre=genre or "未指定",
+            plots=plots or "未指定",
+            story_core=story_core,
+            protagonist=protagonist,
+            key_appeal=key_appeal,
+        )
+
+    @classmethod
+    def generate_satisfaction_analysis_prompt(
+        cls,
+        chapter_range: str,
+        total_words: int,
+        chapters_content: str,
+    ) -> str:
+        """生成爽点专项分析提示词（KB2 帮回系统）"""
+        return cls.SATISFACTION_ANALYSIS_PROMPT.format(
+            chapter_range=chapter_range,
+            total_words=total_words,
+            chapters_content=chapters_content,
+        )
+
+    @classmethod
+    def generate_rhythm_analysis_prompt(
+        cls,
+        chapter_range: str,
+        total_words: int,
+        chapters_content: str,
+    ) -> str:
+        """生成节奏专项分析提示词（KB2 帮回系统）"""
+        return cls.RHYTHM_ANALYSIS_PROMPT.format(
+            chapter_range=chapter_range,
+            total_words=total_words,
+            chapters_content=chapters_content,
+        )
+
+    @classmethod
+    def generate_conflict_analysis_prompt(
+        cls,
+        chapter_range: str,
+        total_words: int,
+        chapters_content: str,
+    ) -> str:
+        """生成冲突专项分析提示词（KB2 帮回系统）"""
+        return cls.CONFLICT_ANALYSIS_PROMPT.format(
+            chapter_range=chapter_range,
+            total_words=total_words,
+            chapters_content=chapters_content,
+        )
+
+    @classmethod
+    def generate_character_check_prompt(
+        cls,
+        character_name: str,
+        character_profile: str,
+        chapters_content: str,
+    ) -> str:
+        """生成人设专项检查提示词（KB2 帮回系统）"""
+        return cls.CHARACTER_CHECK_PROMPT.format(
+            character_name=character_name,
+            character_profile=character_profile,
+            chapters_content=chapters_content,
+        )
+
+    @classmethod
+    def generate_opening_check_prompt(
+        cls,
+        opening_chapters: str,
+    ) -> str:
+        """生成开篇质量专项检查提示词（KB2 黄金开篇五大铁律）"""
+        return cls.OPENING_CHECK_PROMPT.format(
+            opening_chapters=opening_chapters,
+        )

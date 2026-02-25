@@ -17,6 +17,7 @@ from ainovel.workflow.generators.world_building_generator import WorldBuildingGe
 from ainovel.workflow.generators.detail_outline_generator import DetailOutlineGenerator
 from ainovel.workflow.generators.quality_check_generator import QualityCheckGenerator
 from ainovel.workflow.generators.consistency_generator import ConsistencyGenerator
+from ainovel.workflow.generators.title_generator import TitleSynopsisGenerator
 from ainovel.core.outline_generator import OutlineGenerator
 from ainovel.core.chapter_generator import ChapterGenerator
 from ainovel.core.chapter_rewriter import ChapterRewriter
@@ -59,6 +60,7 @@ class WorkflowOrchestrator:
         self.detail_outline_gen = DetailOutlineGenerator(llm_client)
         self.quality_check_gen = QualityCheckGenerator(llm_client)
         self.consistency_gen = ConsistencyGenerator(llm_client)
+        self.title_synopsis_gen = TitleSynopsisGenerator(llm_client)
         self.style_analyzer = StyleAnalyzer(llm_client)
 
     def get_workflow_status(self, session: Session, novel_id: int) -> Dict[str, Any]:
@@ -729,3 +731,259 @@ class WorkflowOrchestrator:
             return True  # 可以标记完成
         else:
             return False
+
+    def generate_title_synopsis(
+        self,
+        session: Session,
+        novel_id: int,
+    ) -> Dict[str, Any]:
+        """
+        生成书名候选与黄金结构简介（KB2 第十一步）
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+
+        Returns:
+            {
+                "titles": [...],
+                "synopsis": {...},
+                "marketing_keywords": [...],
+                "target_audience": str,
+                "usage": {...},
+                "cost": float
+            }
+        """
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        # 从小说数据中提取必要信息
+        story_core = novel.planning_content or novel.description or ""
+        if not story_core:
+            raise InsufficientDataError(
+                "缺少故事核心信息，请先完成步骤1（创作思路）",
+                missing_data="planning_content 或 description",
+            )
+
+        # 提取主角信息（从世界构建内容或描述中获取）
+        protagonist = ""
+        characters = self.character_db.get_characters(session, novel_id)
+        if characters:
+            main_char = characters[0]
+            protagonist = f"{main_char.get('name', '')}：{main_char.get('description', '')}"
+
+        # 提取核心爽点（从规划内容中截取前200字作为摘要）
+        key_appeal = story_core[:200] if len(story_core) > 200 else story_core
+
+        result = self.title_synopsis_gen.generate(
+            draft_title=novel.title or "",
+            genre=novel.genre or "",
+            plots=novel.plots or "",
+            story_core=story_core[:500],
+            protagonist=protagonist,
+            key_appeal=key_appeal,
+        )
+
+        result["novel_id"] = novel_id
+        return result
+
+    def _collect_chapters_content(
+        self,
+        session: Session,
+        novel_id: int,
+        chapter_range: str | None = None,
+    ) -> tuple:
+        """
+        收集章节内容，返回 (chapters, range_str, content_str, total_words)
+
+        Args:
+            chapter_range: 如 "1-10"，None 表示全部
+        """
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        all_chapters = []
+        for volume in sorted(novel.volumes, key=lambda v: v.order):
+            all_chapters.extend(sorted(volume.chapters, key=lambda c: c.order))
+
+        chapters_with_content = [c for c in all_chapters if c.content]
+        if not chapters_with_content:
+            raise InsufficientDataError(
+                "没有已生成正文的章节，请先完成步骤5（章节写作）",
+                missing_data="chapter.content",
+            )
+
+        if chapter_range:
+            parts = chapter_range.split("-")
+            start = int(parts[0]) - 1
+            end = int(parts[1]) if len(parts) > 1 else len(chapters_with_content)
+            selected = chapters_with_content[start:end]
+            range_str = chapter_range
+        else:
+            selected = chapters_with_content
+            range_str = f"1-{len(selected)}"
+
+        content_parts = [
+            f"【第{i}章：{ch.title}】\n{ch.content}"
+            for i, ch in enumerate(selected, 1)
+        ]
+        content_str = "\n\n".join(content_parts)
+        total_words = sum(ch.word_count or len(ch.content or "") for ch in selected)
+
+        return selected, range_str, content_str, total_words
+
+    def _call_analysis(
+        self,
+        prompt: str,
+        temperature: float = 0.3,
+        max_tokens: int = 3000,
+    ) -> Dict[str, Any]:
+        """调用 LLM 执行分析，返回解析后的 JSON 或原始文本"""
+        import json
+        import re
+
+        response = self.llm_client.generate(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        raw = response.get("content") or ""
+
+        match = re.search(r"```json\s*([\s\S]+?)\s*```", raw)
+        if match:
+            try:
+                data = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                data = {"raw": raw}
+        else:
+            start, end = raw.find("{"), raw.rfind("}") + 1
+            if start != -1 and end > start:
+                try:
+                    data = json.loads(raw[start:end])
+                except json.JSONDecodeError:
+                    data = {"raw": raw}
+            else:
+                data = {"raw": raw}
+
+        return {**data, "usage": response.get("usage", {}), "cost": response.get("cost", 0)}
+
+    def analyze_satisfaction(
+        self,
+        session: Session,
+        novel_id: int,
+        chapter_range: str | None = None,
+    ) -> Dict[str, Any]:
+        """爽点专项分析（KB2 帮回系统）"""
+        _, range_str, content_str, total_words = self._collect_chapters_content(
+            session, novel_id, chapter_range
+        )
+        prompt = self.prompt_manager.generate_satisfaction_analysis_prompt(
+            chapter_range=range_str,
+            total_words=total_words,
+            chapters_content=content_str,
+        )
+        result = self._call_analysis(prompt)
+        result["novel_id"] = novel_id
+        return result
+
+    def analyze_rhythm(
+        self,
+        session: Session,
+        novel_id: int,
+        chapter_range: str | None = None,
+    ) -> Dict[str, Any]:
+        """节奏专项分析（KB2 帮回系统）"""
+        _, range_str, content_str, total_words = self._collect_chapters_content(
+            session, novel_id, chapter_range
+        )
+        prompt = self.prompt_manager.generate_rhythm_analysis_prompt(
+            chapter_range=range_str,
+            total_words=total_words,
+            chapters_content=content_str,
+        )
+        result = self._call_analysis(prompt)
+        result["novel_id"] = novel_id
+        return result
+
+    def analyze_conflict(
+        self,
+        session: Session,
+        novel_id: int,
+        chapter_range: str | None = None,
+    ) -> Dict[str, Any]:
+        """冲突专项分析（KB2 帮回系统）"""
+        _, range_str, content_str, total_words = self._collect_chapters_content(
+            session, novel_id, chapter_range
+        )
+        prompt = self.prompt_manager.generate_conflict_analysis_prompt(
+            chapter_range=range_str,
+            total_words=total_words,
+            chapters_content=content_str,
+        )
+        result = self._call_analysis(prompt)
+        result["novel_id"] = novel_id
+        return result
+
+    def analyze_character(
+        self,
+        session: Session,
+        novel_id: int,
+        character_name: str,
+        chapter_range: str | None = None,
+    ) -> Dict[str, Any]:
+        """人设专项检查（KB2 帮回系统）"""
+        _, range_str, content_str, _ = self._collect_chapters_content(
+            session, novel_id, chapter_range
+        )
+        characters = self.character_db.get_characters(session, novel_id)
+        character_profile = ""
+        for char in characters:
+            if char.get("name", "") == character_name:
+                character_profile = str(char)
+                break
+        if not character_profile:
+            character_profile = f"角色名：{character_name}（未找到详细档案）"
+
+        prompt = self.prompt_manager.generate_character_check_prompt(
+            character_name=character_name,
+            character_profile=character_profile,
+            chapters_content=content_str,
+        )
+        result = self._call_analysis(prompt)
+        result["novel_id"] = novel_id
+        result["character_name"] = character_name
+        return result
+
+    def analyze_opening(
+        self,
+        session: Session,
+        novel_id: int,
+    ) -> Dict[str, Any]:
+        """开篇质量专项检查（KB2 黄金开篇五大铁律）"""
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        all_chapters = []
+        for volume in sorted(novel.volumes, key=lambda v: v.order):
+            all_chapters.extend(sorted(volume.chapters, key=lambda c: c.order))
+
+        opening = [c for c in all_chapters if c.content][:3]
+        if not opening:
+            raise InsufficientDataError(
+                "没有已生成正文的章节，请先完成步骤5（章节写作）",
+                missing_data="chapter.content",
+            )
+
+        content_parts = [
+            f"【第{i}章：{ch.title}】\n{ch.content}"
+            for i, ch in enumerate(opening, 1)
+        ]
+        prompt = self.prompt_manager.generate_opening_check_prompt(
+            opening_chapters="\n\n".join(content_parts),
+        )
+        result = self._call_analysis(prompt)
+        result["novel_id"] = novel_id
+        return result

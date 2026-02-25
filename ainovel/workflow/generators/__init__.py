@@ -6,6 +6,7 @@ from ainovel.workflow.generators.world_building_generator import WorldBuildingGe
 from ainovel.workflow.generators.detail_outline_generator import DetailOutlineGenerator
 from ainovel.workflow.generators.quality_check_generator import QualityCheckGenerator
 from ainovel.workflow.generators.consistency_generator import ConsistencyGenerator
+from ainovel.workflow.generators.title_generator import TitleSynopsisGenerator
 
 __all__ = [
     "PlanningGenerator",
@@ -13,4 +14,5 @@ __all__ = [
     "DetailOutlineGenerator",
     "QualityCheckGenerator",
     "ConsistencyGenerator",
+    "TitleSynopsisGenerator",
 ]
