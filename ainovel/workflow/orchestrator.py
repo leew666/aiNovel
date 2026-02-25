@@ -122,14 +122,17 @@ class WorkflowOrchestrator:
         result = self.planning_gen.generate_planning(initial_idea=idea)
 
         # 保存到数据库
-        planning_json = json.dumps(result["planning"], ensure_ascii=False, indent=2)
-        novel.planning_content = planning_json
+        novel.planning_content = result["planning"]
         novel.workflow_status = WorkflowStatus.PLANNING
         novel.current_step = 1
         session.commit()
 
         result["novel_id"] = novel_id
         result["workflow_status"] = novel.workflow_status.value
+        result["stats"] = {
+            "usage": result.get("usage", {}),
+            "cost": result.get("cost", 0),
+        }
         return result
 
     def step_1_update(

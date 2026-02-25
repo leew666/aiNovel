@@ -275,19 +275,22 @@ document.querySelector('form').addEventListener('submit', function() {
         if (el) el.name = '_sel_unused';
     });
 
+    // 先重置所有 api_base input 的 name，避免切换 provider 后残留错误 name
+    const ob = document.getElementById('openai-api-base');
+    if (ob) ob.name = '_base_unused';
+    const qb = document.getElementById('qwen-api-base');
+    if (qb) qb.name = '_base_unused';
+
     // 只激活当前 provider 的 text input
     if (p === 'claude') {
         document.getElementById('claude-model-input').name = 'model';
     } else if (p === 'qwen') {
         document.getElementById('qwen-model-input').name = 'model';
-        // qwen 的 api_base 覆盖 openai 的
-        const qb = document.getElementById('qwen-api-base');
         if (qb) qb.name = 'openai_api_base';
-        const ob = document.getElementById('openai-api-base');
-        if (ob) ob.name = '_base_unused';
     } else {
         // openai 或 custom
         document.getElementById('openai-model-input').name = 'model';
+        if (ob) ob.name = 'openai_api_base';
     }
 });
 </script>

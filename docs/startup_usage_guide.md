@@ -86,7 +86,7 @@ DATABASE_URL=sqlite:///data/ainovel.db
 
 ## 3. 使用说明
 
-## 3.1 CLI 工作流（推荐）
+## 3.1 CLI 工作流
 
 > 如果命令 `ainovel` 不存在，请先确认执行过 `pip install -e .`，或者使用 `python -m ainovel.cli.main` 代替。
 
@@ -129,7 +129,9 @@ ainovel complete 1
 
 ---
 
-## 3.2 Web API 工作流（FastAPI）
+## 3.2 Web （推荐）
+
+source .venv/bin/activate
 
 ### 1）启动服务
 

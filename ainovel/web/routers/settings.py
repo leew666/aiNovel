@@ -54,9 +54,29 @@ def _read_env() -> dict[str, str]:
 
 
 def _write_env(data: dict[str, str]) -> None:
-    """将 key-value 字典写回 .env 文件"""
-    lines = [f"{k}={v}" for k, v in data.items()]
-    Path(".env").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    """将 key-value 字典写回 .env 文件，保留注释和空行结构"""
+    env_path = Path(".env")
+    original_lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    written_keys: set[str] = set()
+    result: list[str] = []
+
+    for line in original_lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            k, _, _ = stripped.partition("=")
+            k = k.strip()
+            if k in data:
+                result.append(f"{k}={data[k]}")
+                written_keys.add(k)
+                continue
+        result.append(line)
+
+    # 追加新增的 key（原文件中不存在的）
+    for k, v in data.items():
+        if k not in written_keys:
+            result.append(f"{k}={v}")
+
+    env_path.write_text("\n".join(result) + "\n", encoding="utf-8")
 
 
 @router.get("", response_class=HTMLResponse, include_in_schema=False)
@@ -146,6 +166,18 @@ async def save_settings(request: Request):
     if qwen_key:
         existing["DASHSCOPE_API_KEY"] = qwen_key
     _write_env(existing)
+
+    # 同步更新内存中的 settings，避免需要重启服务
+    settings.LLM_PROVIDER = provider
+    settings.LLM_MODEL = model
+    settings.OPENAI_API_BASE = openai_api_base
+    settings.DAILY_BUDGET = float(daily_budget)
+    if openai_key:
+        settings.OPENAI_API_KEY = openai_key
+    if claude_key:
+        settings.ANTHROPIC_API_KEY = claude_key
+    if qwen_key:
+        settings.DASHSCOPE_API_KEY = qwen_key
 
     return templates.TemplateResponse(
         "partials/settings_saved.html",

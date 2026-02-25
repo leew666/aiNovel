@@ -79,7 +79,8 @@
     <form hx-post="/workflow/{{ novel.id }}/step1"
           hx-target="#step1-result"
           hx-swap="innerHTML"
-          hx-indicator="#step1-spinner">
+          hx-indicator="#step1-spinner"
+          hx-ext="json-enc">
         <textarea name="initial_idea" placeholder="输入初始想法（留空则使用小说描述）" style="min-height: 80px;">{{ novel.description or '' }}</textarea>
         <button type="submit" class="btn">生成创作思路
             <span id="step1-spinner" class="spinner-inline"></span>
@@ -150,10 +151,11 @@
           hx-target="#step5-result"
           hx-swap="innerHTML"
           hx-indicator="#step5-spinner"
+          hx-ext="json-enc"
           id="step5-form"
           onsubmit="updateStep5Action(this)">
         <div style="display: flex; gap: 10px; margin-bottom: 0;">
-            <input type="number" id="step5-chapter-id" name="_chapter_id" placeholder="章节 ID" min="1" style="width: 140px; margin-bottom: 15px;" required>
+            <input type="number" id="step5-chapter-id" name="_chapter_id" placeholder="章节 ID" min="1" style="width: 140px; margin-bottom: 15px;" required hx-include="none">
             <input type="text" name="style_guide" placeholder="风格指南（可选，如：金庸武侠风）" style="flex: 1; margin-bottom: 15px;">
         </div>
         <button type="submit" class="btn">生成章节内容

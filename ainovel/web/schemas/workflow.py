@@ -72,7 +72,7 @@ class Step1Response(BaseModel):
 
     novel_id: int
     workflow_status: str
-    planning: dict[str, Any]
+    planning: str
     stats: dict[str, Any]
 
 

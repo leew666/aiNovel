@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from loguru import logger
 
 from ainovel.web.config import settings
@@ -77,7 +77,8 @@ async def index(request: Request):
         "claude": settings.ANTHROPIC_API_KEY,
         "qwen": settings.DASHSCOPE_API_KEY,
     }
-    api_key_set = bool(key_map.get(configured_provider.lower()))
+    # 自定义 provider 使用 OPENAI_API_KEY
+    api_key_set = bool(key_map.get(configured_provider.lower(), settings.OPENAI_API_KEY))
     return templates.TemplateResponse(
         "index.html",
         {
@@ -89,6 +90,11 @@ async def index(request: Request):
             "api_key_set": api_key_set,
         },
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/health", summary="健康检查")
