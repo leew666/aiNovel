@@ -17,7 +17,7 @@
 {% if not characters %}
 <div class="card" style="text-align: center; color: #7f8c8d; padding: 40px;">
     <p>暂无角色，请先完成创作流程步骤 2（世界观与角色生成）</p>
-    <a href="/workflow/{{ novel.id }}" class="btn" style="margin-top: 16px;">进入创作流程</a>
+    <a href="/novels/view/{{ novel.id }}" class="btn" style="margin-top: 16px;">进入项目详情</a>
 </div>
 {% else %}
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">

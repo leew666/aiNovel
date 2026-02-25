@@ -185,6 +185,34 @@ async def create_novel_html(request: Request, session: SessionDep):
     )
 
 
+@router.get("/editor/{novel_id}", response_class=HTMLResponse, summary="章节编辑器页")
+async def chapter_editor(novel_id: int, request: Request, session: SessionDep):
+    """
+    章节编辑器页面（HTML）
+
+    左侧树形章节列表，右侧章节创作/质检/向量化操作区
+    """
+    novel = novel_crud.get_by_id(session, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说项目不存在")
+
+    volumes = sorted(novel.volumes, key=lambda v: v.order)
+    for vol in volumes:
+        vol.chapters.sort(key=lambda c: c.order)
+
+    chapters_count = sum(len(v.chapters) for v in volumes)
+
+    return templates.TemplateResponse(
+        "chapter_editor.html",
+        {
+            "request": request,
+            "novel": novel,
+            "volumes": volumes,
+            "chapters_count": chapters_count,
+        },
+    )
+
+
 @router.get("/view/{novel_id}", response_class=HTMLResponse, summary="小说详情页")
 async def view_novel(novel_id: int, request: Request, session: SessionDep):
     """

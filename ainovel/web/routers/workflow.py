@@ -3,14 +3,15 @@
 
 提供6步创作流程的 API 接口
 """
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from pydantic import BaseModel
 
 from ainovel.web.dependencies import SessionDep, OrchestratorDep
 from ainovel.web.schemas.workflow import *
-from ainovel.db.crud import novel_crud
+from ainovel.db.crud import novel_crud, chapter_crud
 
 router = APIRouter()
 
@@ -284,6 +285,105 @@ async def pipeline_status(novel_id: int, session: SessionDep, orch: Orchestrator
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 章节编辑器辅助 API ============
+
+
+class OutlineUpdateRequest(BaseModel):
+    detail_outline: str
+
+
+@router.get("/chapter/{chapter_id}/content")
+async def get_chapter_content(chapter_id: int, session: SessionDep):
+    """获取章节细纲和正文内容（供章节编辑器加载）"""
+    chapter = chapter_crud.get_by_id(session, chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    return {
+        "chapter_id": chapter.id,
+        "title": chapter.title,
+        "detail_outline": chapter.detail_outline,
+        "content": chapter.content,
+        "word_count": chapter.word_count,
+    }
+
+
+@router.put("/chapter/{chapter_id}/outline")
+async def update_chapter_outline(
+    chapter_id: int,
+    request_data: OutlineUpdateRequest,
+    session: SessionDep,
+):
+    """手动保存章节细纲"""
+    chapter = chapter_crud.get_by_id(session, chapter_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    chapter_crud.update(session, chapter_id, detail_outline=request_data.detail_outline)
+    return {"ok": True, "chapter_id": chapter_id}
+
+
+@router.post("/{novel_id}/compress-summaries")
+async def compress_novel_summaries(
+    novel_id: int,
+    session: SessionDep,
+    orch: OrchestratorDep,
+    force: bool = Query(False, description="强制重新压缩已有摘要"),
+):
+    """批量压缩小说已生成章节的摘要（供上下文压缩器使用）"""
+    novel = novel_crud.get_by_id(session, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    try:
+        from ainovel.core.context_compressor import ContextCompressor
+        compressor = ContextCompressor(orch.llm_client, session)
+
+        all_chapters = []
+        for volume in sorted(novel.volumes, key=lambda v: v.order):
+            all_chapters.extend(sorted(volume.chapters, key=lambda c: c.order))
+
+        # 只处理有正文的章节
+        target = [c for c in all_chapters if c.content and (force or not c.summary)]
+        compressed = 0
+        skipped = 0
+        for chapter in target:
+            if not force and chapter.summary:
+                skipped += 1
+                continue
+            # force 时清空缓存让 compress_and_cache 重新生成
+            if force:
+                chapter_crud.update(session, chapter.id, summary=None)
+            compressor.compress_and_cache(chapter.id)
+            compressed += 1
+
+        return {
+            "ok": True,
+            "novel_id": novel_id,
+            "compressed": compressed,
+            "skipped": skipped,
+            "total_with_content": len([c for c in all_chapters if c.content]),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"压缩失败: {e}")
+
+
+@router.post("/{novel_id}/vectorize")
+async def vectorize_novel(
+    novel_id: int,
+    session: SessionDep,
+    force: bool = Query(False, description="强制重新向量化所有伏笔"),
+):
+    """对小说伏笔进行向量化索引（供章节编辑器调用）"""
+    novel = novel_crud.get_by_id(session, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    try:
+        from ainovel.memory.rag_retriever import RAGRetriever
+        retriever = RAGRetriever(session)
+        count = retriever.index_novel(novel_id, force=force)
+        return {"ok": True, "indexed_count": count, "novel_id": novel_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"向量化失败: {e}")
 
 
 # ============ HTML 视图路由 ============

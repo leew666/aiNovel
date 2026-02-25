@@ -36,6 +36,13 @@ def get_database() -> Database:
     return _db_instance
 
 
+def reset_llm_client() -> None:
+    """清除缓存的 LLM 客户端，下次请求时用最新配置重建。"""
+    global _llm_client
+    _llm_client = None
+    LLMFactory.clear_cache()
+
+
 def get_llm_client() -> BaseLLMClient:
     """
     获取全局 LLM Client 实例
@@ -52,8 +59,8 @@ def get_llm_client() -> BaseLLMClient:
             _llm_client = LLMFactory.create_client(
                 provider=settings.LLM_PROVIDER.lower(),
                 model=settings.LLM_MODEL,
-                openai_api_key=settings.OPENAI_API_KEY,
-                openai_api_base=settings.OPENAI_API_BASE,
+                openai_api_key=settings.active_api_key,
+                openai_api_base=settings.active_api_base,
                 anthropic_api_key=settings.ANTHROPIC_API_KEY,
                 dashscope_api_key=settings.DASHSCOPE_API_KEY,
             )

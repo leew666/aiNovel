@@ -1,0 +1,817 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - 章节编辑器{% endblock %}
+
+{% block extra_head %}
+<style>
+/* 整体布局：左侧树 + 右侧编辑区 */
+.editor-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+/* 左侧章节树 */
+.chapter-tree {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+}
+.chapter-tree-header {
+    padding: 12px 14px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-weight: bold;
+    font-size: 13px;
+    color: #2c3e50;
+}
+.chapter-tree-body {
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* 卷节点 */
+.volume-node {
+    border-bottom: 1px solid #f0f0f0;
+}
+.volume-label {
+    display: flex;
+    align-items: center;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #2c3e50;
+    background: #f8f9fa;
+    cursor: pointer;
+    user-select: none;
+}
+.volume-label:hover { background: #ecf0f1; }
+.volume-toggle {
+    margin-right: 6px;
+    font-size: 10px;
+    color: #95a5a6;
+    transition: transform 0.15s;
+}
+.volume-toggle.collapsed { transform: rotate(-90deg); }
+
+/* 章节节点 */
+.chapter-list { padding: 4px 0; }
+.chapter-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 14px 6px 28px;
+    font-size: 13px;
+    color: #555;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.1s;
+}
+.chapter-item:hover { background: #f0f7ff; color: #2980b9; }
+.chapter-item.active {
+    background: #ebf5fb;
+    border-left-color: #3498db;
+    color: #2980b9;
+    font-weight: 500;
+}
+.chapter-item .chapter-status {
+    margin-left: auto;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+.status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-dot.has-content  { background: #27ae60; }
+.status-dot.has-outline  { background: #f39c12; }
+.status-dot.empty        { background: #ddd; }
+
+/* 右侧编辑区 */
+.editor-panel {
+    min-height: 600px;
+}
+.editor-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 400px;
+    color: #95a5a6;
+    font-size: 14px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+/* 章节信息头 */
+.chapter-info-bar {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.chapter-info-bar h3 { margin: 0; font-size: 16px; }
+.chapter-info-bar .meta { font-size: 12px; color: #7f8c8d; margin-top: 3px; }
+
+/* 操作按钮组 */
+.action-group {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+}
+.action-group-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* 内容展示区 */
+.content-panel {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 18px;
+    margin-bottom: 12px;
+}
+.content-panel-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.content-text {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #333;
+    white-space: pre-wrap;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.content-empty {
+    color: #bdc3c7;
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* 结果框 */
+.result-box {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 14px;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.7;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* spinner */
+.htmx-request .spinner-inline { display: inline-block !important; }
+.spinner-inline {
+    display: none;
+    width: 14px; height: 14px;
+    border: 2px solid #ccc;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+/* 按钮尺寸变体 */
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+.btn-danger { background: #e74c3c; }
+.btn-danger:hover { background: #c0392b; }
+.btn-warning { background: #f39c12; }
+.btn-warning:hover { background: #d68910; }
+.btn-info { background: #16a085; }
+.btn-info:hover { background: #1a8a72; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 14px; display: flex; align-items: center; gap: 16px;">
+    <a href="/novels/view/{{ novel.id }}" style="color: #3498db; text-decoration: none;">← 返回项目详情</a>
+    <span style="color: #ddd;">|</span>
+    <span style="font-size: 14px; color: #2c3e50; font-weight: 500;">📖 {{ novel.title }}</span>
+    <span style="font-size: 12px; color: #7f8c8d;">章节编辑器</span>
+</div>
+
+<div class="editor-layout">
+    <!-- 左侧：章节树 -->
+    <div class="chapter-tree">
+        <div class="chapter-tree-header">
+            章节结构
+            <span style="font-weight: normal; color: #7f8c8d; font-size: 12px; margin-left: 6px;">
+                {{ chapters_count }} 章
+            </span>
+        </div>
+        <div class="chapter-tree-body">
+            {% for volume in volumes %}
+            <div class="volume-node">
+                <div class="volume-label" onclick="toggleVolume({{ volume.id }})">
+                    <span class="volume-toggle" id="toggle-{{ volume.id }}">▼</span>
+                    第{{ volume.order }}卷 {{ volume.title }}
+                </div>
+                <div class="chapter-list" id="vol-chapters-{{ volume.id }}">
+                    {% for chapter in volume.chapters | sort(attribute='order') %}
+                    <div class="chapter-item"
+                         id="chapter-item-{{ chapter.id }}"
+                         onclick="selectChapter({{ chapter.id }}, {{ volume.id }}, '{{ chapter.title | e }}', {{ chapter.order }}, '{{ volume.title | e }}')">
+                        <span style="margin-right: 6px; color: #bdc3c7; font-size: 11px;">{{ chapter.order }}</span>
+                        {{ chapter.title }}
+                        <span class="chapter-status">
+                            {% if chapter.content %}
+                            <span class="status-dot has-content" title="已生成正文"></span>
+                            {% elif chapter.detail_outline %}
+                            <span class="status-dot has-outline" title="已有细纲"></span>
+                            {% else %}
+                            <span class="status-dot empty" title="未开始"></span>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #bdc3c7; font-size: 13px;">
+                暂无章节<br>请先完成步骤3生成大纲
+            </div>
+            {% endfor %}
+        </div>
+        <!-- 图例 -->
+        <div style="padding: 10px 14px; border-top: 1px solid #f0f0f0; font-size: 11px; color: #95a5a6; display: flex; gap: 12px;">
+            <span><span class="status-dot has-content" style="display:inline-block;"></span> 已创作</span>
+            <span><span class="status-dot has-outline" style="display:inline-block;"></span> 有细纲</span>
+            <span><span class="status-dot empty" style="display:inline-block;"></span> 未开始</span>
+        </div>
+    </div>
+
+    <!-- 右侧：编辑操作区 -->
+    <div class="editor-panel" id="editor-panel">
+        <div class="editor-empty" id="editor-empty">
+            ← 从左侧选择一个章节开始创作
+        </div>
+
+        <!-- 章节操作区（选中章节后显示） -->
+        <div id="chapter-workspace" style="display: none;">
+
+            <!-- 章节信息头 -->
+            <div class="chapter-info-bar">
+                <div>
+                    <h3 id="ws-chapter-title">章节标题</h3>
+                    <div class="meta" id="ws-chapter-meta">第X卷 · 第X章</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-sm" style="background: #7f8c8d;"
+                            onclick="prevChapter()">← 上一章</button>
+                    <button class="btn btn-sm" style="background: #7f8c8d;"
+                            onclick="nextChapter()">下一章 →</button>
+                </div>
+            </div>
+
+            <!-- 操作按钮组：创作 -->
+            <div class="action-group">
+                <div class="action-group-title">章节创作</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm" id="btn-write"
+                            onclick="doWrite()">
+                        章节创作
+                        <span class="spinner-inline" id="spinner-write"></span>
+                    </button>
+                    <button class="btn btn-sm btn-warning" id="btn-outline"
+                            onclick="doDetailOutline()">
+                        生成细纲
+                        <span class="spinner-inline" id="spinner-outline"></span>
+                    </button>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="text" id="style-guide-input"
+                               placeholder="风格指南（可选）"
+                               style="width: 180px; padding: 5px 10px; font-size: 12px; margin-bottom: 0;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮组：检查 -->
+            <div class="action-group">
+                <div class="action-group-title">质量与一致性</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-info" id="btn-quality"
+                            onclick="doQualityCheck()">
+                        质量检查
+                        <span class="spinner-inline" id="spinner-quality"></span>
+                    </button>
+                    <button class="btn btn-sm btn-info" id="btn-consistency"
+                            onclick="doConsistencyCheck()">
+                        一致性检查
+                        <span class="spinner-inline" id="spinner-consistency"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 操作按钮组：改写与回滚 -->
+            <div class="action-group">
+                <div class="action-group-title">改写 / 回滚</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-danger"
+                            onclick="doRewrite()">
+                        重写本章
+                        <span class="spinner-inline" id="spinner-rewrite"></span>
+                    </button>
+                    <button class="btn btn-sm" style="background: #7f8c8d;"
+                            onclick="doRollback()">
+                        回滚上一版
+                        <span class="spinner-inline" id="spinner-rollback"></span>
+                    </button>
+                </div>
+                <div style="margin-top: 8px;">
+                    <input type="text" id="rewrite-instruction"
+                           placeholder="改写指令（如：加强冲突感、精简对话）"
+                           style="width: 100%; padding: 5px 10px; font-size: 12px; margin-bottom: 0;">
+                </div>
+            </div>
+
+            <!-- 操作按钮组：流水线 -->
+            <div class="action-group">
+                <div class="action-group-title">流水线</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-success"
+                            onclick="doPipelineRun()">
+                        批量运行流水线
+                        <span class="spinner-inline" id="spinner-pipeline"></span>
+                    </button>
+                </div>
+                <div style="font-size: 11px; color: #95a5a6; margin-top: 6px;">
+                    自动执行：大纲 → 细纲 → 正文，跳过已完成章节。
+                </div>
+            </div>
+
+            <!-- 操作按钮组：向量化 -->
+            <div class="action-group">
+                <div class="action-group-title">向量化 / RAG</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm" style="background: #8e44ad;"
+                            onclick="doVectorize()">
+                        向量化
+                        <span class="spinner-inline" id="spinner-vec"></span>
+                    </button>
+                    <button class="btn btn-sm" style="background: #6c3483;"
+                            onclick="doRevectorize()">
+                        重新向量化
+                    </button>
+                </div>
+                <div style="font-size: 11px; color: #95a5a6; margin-top: 6px;">
+                    向量化后，章节内容将被索引用于后续章节的上下文检索。
+                </div>
+            </div>
+
+            <!-- 操作按钮组：上下文压缩 -->
+            <div class="action-group">
+                <div class="action-group-title">上下文压缩</div>
+                <div class="action-buttons">
+                    <button class="btn btn-sm" style="background: #2980b9;"
+                            onclick="doCompressSummaries(false)">
+                        批量压缩摘要
+                        <span class="spinner-inline" id="spinner-compress"></span>
+                    </button>
+                    <button class="btn btn-sm" style="background: #1a5276;"
+                            onclick="doCompressSummaries(true)">
+                        强制重新压缩
+                    </button>
+                </div>
+                <div style="font-size: 11px; color: #95a5a6; margin-top: 6px;">
+                    对已生成正文的章节生成摘要缓存，提升后续章节创作的上下文质量。
+                </div>
+            </div>
+
+            <!-- 操作结果 -->
+            <div id="action-result" class="result-box" style="display: none; margin-bottom: 12px;"></div>
+
+            <!-- 细纲内容 -->
+            <div class="content-panel" id="panel-outline" style="display: none;">
+                <div class="content-panel-title">
+                    <span>细纲</span>
+                    <button class="btn btn-sm" style="background: #f39c12; font-size: 11px; padding: 3px 8px;"
+                            onclick="toggleEditOutline()">编辑</button>
+                </div>
+                <div id="outline-view" class="content-text"></div>
+                <textarea id="outline-edit" style="display:none; min-height: 160px; font-size: 13px;"></textarea>
+                <div id="outline-edit-actions" style="display:none; margin-top: 8px;">
+                    <button class="btn btn-sm btn-success" onclick="saveOutline()">保存细纲</button>
+                    <button class="btn btn-sm" style="background: #7f8c8d;" onclick="cancelEditOutline()">取消</button>
+                </div>
+            </div>
+
+            <!-- 正文内容 -->
+            <div class="content-panel" id="panel-content" style="display: none;">
+                <div class="content-panel-title">
+                    <span>正文</span>
+                    <span id="content-word-count" style="font-size: 11px; color: #7f8c8d; font-weight: normal;"></span>
+                </div>
+                <div id="content-view" class="content-text"></div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const NOVEL_ID = {{ novel.id }};
+
+/* 章节树数据（从模板渲染） */
+const volumeData = [
+    {% for volume in volumes %}
+    {
+        id: {{ volume.id }},
+        order: {{ volume.order }},
+        title: "{{ volume.title | e }}",
+        chapters: [
+            {% for chapter in volume.chapters | sort(attribute='order') %}
+            {
+                id: {{ chapter.id }},
+                order: {{ chapter.order }},
+                title: "{{ chapter.title | e }}",
+                hasContent: {{ 'true' if chapter.content else 'false' }},
+                hasOutline: {{ 'true' if chapter.detail_outline else 'false' }},
+                wordCount: {{ chapter.word_count or 0 }}
+            },
+            {% endfor %}
+        ]
+    },
+    {% endfor %}
+];
+
+/* 当前选中状态 */
+let currentChapterId = null;
+let currentVolumeIdx = 0;
+let currentChapterIdx = 0;
+
+/* 展开/折叠卷 */
+function toggleVolume(volumeId) {
+    const list = document.getElementById(`vol-chapters-${volumeId}`);
+    const toggle = document.getElementById(`toggle-${volumeId}`);
+    if (list.style.display === 'none') {
+        list.style.display = '';
+        toggle.classList.remove('collapsed');
+    } else {
+        list.style.display = 'none';
+        toggle.classList.add('collapsed');
+    }
+}
+
+/* 选中章节 */
+function selectChapter(chapterId, volumeId, title, order, volumeTitle) {
+    /* 更新高亮 */
+    document.querySelectorAll('.chapter-item').forEach(el => el.classList.remove('active'));
+    const item = document.getElementById(`chapter-item-${chapterId}`);
+    if (item) item.classList.add('active');
+
+    currentChapterId = chapterId;
+
+    /* 记录位置，用于上下章导航 */
+    for (let vi = 0; vi < volumeData.length; vi++) {
+        const ci = volumeData[vi].chapters.findIndex(c => c.id === chapterId);
+        if (ci !== -1) { currentVolumeIdx = vi; currentChapterIdx = ci; break; }
+    }
+
+    /* 更新标题栏 */
+    document.getElementById('ws-chapter-title').textContent = title;
+    document.getElementById('ws-chapter-meta').textContent =
+        `第${volumeData[currentVolumeIdx].order}卷 ${volumeData[currentVolumeIdx].title} · 第${order}章`;
+
+    /* 显示工作区 */
+    document.getElementById('editor-empty').style.display = 'none';
+    document.getElementById('chapter-workspace').style.display = '';
+
+    /* 清空上次结果 */
+    hideResult();
+
+    /* 加载章节内容 */
+    loadChapterContent(chapterId);
+}
+
+/* 加载章节内容（细纲 + 正文） */
+function loadChapterContent(chapterId) {
+    fetch(`/workflow/chapter/${chapterId}/content`)
+        .then(r => r.json())
+        .then(data => {
+            /* 细纲 */
+            const panelOutline = document.getElementById('panel-outline');
+            const outlineView = document.getElementById('outline-view');
+            if (data.detail_outline) {
+                outlineView.textContent = data.detail_outline;
+                document.getElementById('outline-edit').value = data.detail_outline;
+                panelOutline.style.display = '';
+            } else {
+                outlineView.innerHTML = '<span class="content-empty">暂无细纲，可点击"生成细纲"按钮生成。</span>';
+                document.getElementById('outline-edit').value = '';
+                panelOutline.style.display = '';
+            }
+
+            /* 正文 */
+            const panelContent = document.getElementById('panel-content');
+            const contentView = document.getElementById('content-view');
+            if (data.content) {
+                contentView.textContent = data.content;
+                document.getElementById('content-word-count').textContent = `${data.word_count || 0} 字`;
+                panelContent.style.display = '';
+            } else {
+                contentView.innerHTML = '<span class="content-empty">暂无正文，可点击"章节创作"按钮生成。</span>';
+                document.getElementById('content-word-count').textContent = '';
+                panelContent.style.display = '';
+            }
+        })
+        .catch(() => {
+            showResult('加载章节内容失败，请刷新重试。');
+        });
+}
+
+/* 章节创作 */
+function doWrite() {
+    if (!currentChapterId) return;
+    const styleGuide = document.getElementById('style-guide-input').value.trim();
+    showSpinner('write');
+    fetch(`/workflow/chapter/${currentChapterId}/step5`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ style_guide: styleGuide || null, authors_note: null })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('write');
+        showResult(JSON.stringify(data, null, 2));
+        /* 刷新内容区 */
+        loadChapterContent(currentChapterId);
+        /* 更新树状态点 */
+        updateTreeDot(currentChapterId, 'has-content');
+    })
+    .catch(e => { hideSpinner('write'); showResult('请求失败：' + e); });
+}
+
+/* 生成细纲 */
+function doDetailOutline() {
+    if (!currentChapterId) return;
+    showSpinner('outline');
+    fetch(`/workflow/chapter/${currentChapterId}/step4`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('outline');
+        showResult(JSON.stringify(data, null, 2));
+        loadChapterContent(currentChapterId);
+        updateTreeDot(currentChapterId, 'has-outline');
+    })
+    .catch(e => { hideSpinner('outline'); showResult('请求失败：' + e); });
+}
+
+/* 质量检查 */
+function doQualityCheck() {
+    if (!currentChapterId) return;
+    showSpinner('quality');
+    fetch(`/workflow/chapter/${currentChapterId}/step6`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('quality');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('quality'); showResult('请求失败：' + e); });
+}
+
+/* 一致性检查 */
+function doConsistencyCheck() {
+    if (!currentChapterId) return;
+    showSpinner('consistency');
+    fetch(`/workflow/chapter/${currentChapterId}/consistency-check`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content_override: null, strict: false })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('consistency');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('consistency'); showResult('请求失败：' + e); });
+}
+
+/* 重写本章 */
+function doRewrite() {
+    if (!currentChapterId) return;
+    const instruction = document.getElementById('rewrite-instruction').value.trim();
+    if (!instruction) { showResult('请先填写改写指令'); return; }
+    showSpinner('rewrite');
+    fetch(`/workflow/chapter/${currentChapterId}/rewrite`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ instruction, target_scope: 'full', preserve_plot: true, rewrite_mode: 'rewrite', save: true })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('rewrite');
+        showResult(JSON.stringify(data, null, 2));
+        loadChapterContent(currentChapterId);
+    })
+    .catch(e => { hideSpinner('rewrite'); showResult('请求失败：' + e); });
+}
+
+/* 回滚上一版（history_id 传 null，后端自动取最近一条） */
+function doRollback() {
+    if (!currentChapterId) return;
+    showSpinner('rollback');
+    fetch(`/workflow/chapter/${currentChapterId}/rewrite/rollback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ history_id: null, save: true })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('rollback');
+        showResult(JSON.stringify(data, null, 2));
+        loadChapterContent(currentChapterId);
+    })
+    .catch(e => { hideSpinner('rollback'); showResult('请求失败：' + e); });
+}
+
+/* 批量流水线运行 */
+function doPipelineRun() {
+    showSpinner('pipeline');
+    fetch(`/workflow/${NOVEL_ID}/pipeline/run`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ from_step: 3, to_step: 5, regenerate: false, max_workers: 1 })
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('pipeline');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('pipeline'); showResult('请求失败：' + e); });
+}
+
+/* 批量压缩摘要 */
+function doCompressSummaries(force) {
+    showSpinner('compress');
+    fetch(`/workflow/${NOVEL_ID}/compress-summaries?force=${force}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('compress');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('compress'); showResult('请求失败：' + e); });
+}
+
+/* 向量化（对整部小说的伏笔进行索引） */
+function doVectorize() {
+    showSpinner('vec');
+    fetch(`/workflow/${NOVEL_ID}/vectorize`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('vec');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('vec'); showResult('请求失败：' + e); });
+}
+
+/* 重新向量化（强制重建所有伏笔索引） */
+function doRevectorize() {
+    showSpinner('vec');
+    fetch(`/workflow/${NOVEL_ID}/vectorize?force=true`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        hideSpinner('vec');
+        showResult(JSON.stringify(data, null, 2));
+    })
+    .catch(e => { hideSpinner('vec'); showResult('请求失败：' + e); });
+}
+
+/* 细纲编辑 */
+function toggleEditOutline() {
+    const view = document.getElementById('outline-view');
+    const edit = document.getElementById('outline-edit');
+    const actions = document.getElementById('outline-edit-actions');
+    if (edit.style.display === 'none') {
+        view.style.display = 'none';
+        edit.style.display = '';
+        actions.style.display = '';
+    } else {
+        cancelEditOutline();
+    }
+}
+
+function cancelEditOutline() {
+    document.getElementById('outline-view').style.display = '';
+    document.getElementById('outline-edit').style.display = 'none';
+    document.getElementById('outline-edit-actions').style.display = 'none';
+}
+
+function saveOutline() {
+    if (!currentChapterId) return;
+    const content = document.getElementById('outline-edit').value.trim();
+    fetch(`/workflow/chapter/${currentChapterId}/outline`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ detail_outline: content })
+    })
+    .then(r => r.json())
+    .then(() => {
+        document.getElementById('outline-view').textContent = content;
+        cancelEditOutline();
+        showResult('✓ 细纲已保存');
+    })
+    .catch(e => showResult('保存失败：' + e));
+}
+
+/* 上下章导航 */
+function prevChapter() {
+    const flat = flatChapters();
+    const idx = flat.findIndex(c => c.id === currentChapterId);
+    if (idx > 0) activateFlat(flat[idx - 1]);
+}
+
+function nextChapter() {
+    const flat = flatChapters();
+    const idx = flat.findIndex(c => c.id === currentChapterId);
+    if (idx < flat.length - 1) activateFlat(flat[idx + 1]);
+}
+
+function flatChapters() {
+    const result = [];
+    for (const vol of volumeData) {
+        for (const ch of vol.chapters) {
+            result.push({ ...ch, volumeTitle: vol.title, volumeOrder: vol.order });
+        }
+    }
+    return result;
+}
+
+function activateFlat(ch) {
+    selectChapter(ch.id, null, ch.title, ch.order, ch.volumeTitle);
+    /* 确保对应卷展开 */
+    const list = document.getElementById(`vol-chapters-${volumeData.find(v => v.chapters.some(c => c.id === ch.id))?.id}`);
+    if (list) list.style.display = '';
+}
+
+/* 更新树状态点 */
+function updateTreeDot(chapterId, cls) {
+    const item = document.getElementById(`chapter-item-${chapterId}`);
+    if (!item) return;
+    const dot = item.querySelector('.status-dot');
+    if (dot) { dot.className = `status-dot ${cls}`; }
+}
+
+/* 结果显示 */
+function showResult(text) {
+    const el = document.getElementById('action-result');
+    el.textContent = text;
+    el.style.display = '';
+}
+function hideResult() {
+    const el = document.getElementById('action-result');
+    el.style.display = 'none';
+    el.textContent = '';
+}
+
+/* spinner 控制 */
+function showSpinner(name) {
+    const s = document.getElementById(`spinner-${name}`);
+    if (s) s.style.display = 'inline-block';
+}
+function hideSpinner(name) {
+    const s = document.getElementById(`spinner-${name}`);
+    if (s) s.style.display = 'none';
+}
+</script>
+{% endblock %}

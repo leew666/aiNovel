@@ -35,6 +35,24 @@
 }
 .fetch-btn:hover { background: #dfe6e9; }
 .hint { font-size: 12px; color: #95a5a6; margin-top: -10px; margin-bottom: 15px; }
+/* 自定义 provider 列表 */
+.cp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cp-table th { text-align: left; padding: 8px 10px; background: #f8f9fa; color: #555; font-weight: 600; border-bottom: 2px solid #eee; }
+.cp-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.cp-table tr:last-child td { border-bottom: none; }
+.badge-active { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: #27ae60; color: white; }
+.badge-inactive { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: #ecf0f1; color: #7f8c8d; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 3px; border: 1px solid #ddd; cursor: pointer; background: white; color: #555; }
+.btn-sm:hover { background: #f5f5f5; }
+.btn-sm.danger { border-color: #e74c3c; color: #e74c3c; }
+.btn-sm.danger:hover { background: #fdf0ef; }
+.btn-sm.primary { border-color: #3498db; color: #3498db; }
+.btn-sm.primary:hover { background: #eaf4fb; }
+/* 新增/编辑表单 */
+#cp-form { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-top: 12px; }
+#cp-form .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#cp-form input { margin-bottom: 0; }
+#cp-form-actions { display: flex; gap: 8px; margin-top: 12px; }
 </style>
 {% endblock %}
 
@@ -45,13 +63,11 @@
 
 <div class="card">
     <h2>⚙️ 系统配置</h2>
-    <p style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">配置保存到 .env 文件，重启服务后生效。</p>
+    <p style="color: #7f8c8d; font-size: 13px; margin-top: 4px;">配置保存后立即生效，无需重启服务。</p>
 </div>
 
 <form hx-post="/settings/save" hx-target="#save-result" hx-swap="innerHTML">
     <input type="hidden" name="provider" id="provider-input" value="{{ provider }}">
-    <!-- 自定义 provider 名称（仅 custom 模式使用） -->
-    <input type="hidden" name="custom_provider" id="custom-provider-input" value="">
 
     <!-- 提供商选择 -->
     <div class="card config-section">
@@ -64,87 +80,62 @@
             <button type="button" class="provider-tab {% if provider == 'qwen' %}selected{% endif %}"
                     onclick="selectProvider('qwen', this)">通义千问</button>
             <button type="button" class="provider-tab custom-tab {% if is_custom %}selected{% endif %}"
-                    onclick="selectProvider('custom', this)">+ 自定义</button>
-        </div>
-
-        <!-- 自定义 provider 名称输入 -->
-        <div id="custom-name-row" style="{% if not is_custom %}display:none;{% endif %}margin-bottom: 0;">
-            <label class="field-label">自定义提供商名称（如 deepseek、ollama、groq）</label>
-            <input type="text" id="custom-provider-name"
-                   value="{% if is_custom %}{{ provider }}{% endif %}"
-                   placeholder="自定义名称（字母/数字/连字符）"
-                   oninput="document.getElementById('custom-provider-input').value=this.value">
+                    onclick="selectProvider('custom', this)">自定义</button>
         </div>
     </div>
 
-    <!-- API 端点配置（openai / 自定义共用） -->
-    <div class="card config-section" id="section-endpoint"
-         {% if provider not in ['openai', 'custom'] and not is_custom %}style="display:none"{% endif %}>
-        <h3 id="endpoint-title">
-            {% if is_custom %}{{ provider }} 接口配置{% else %}OpenAI 接口配置{% endif %}
-        </h3>
-
+    <!-- OpenAI 配置 -->
+    <div class="card config-section" id="section-openai"
+         {% if provider != 'openai' %}style="display:none"{% endif %}>
+        <h3>OpenAI 接口配置</h3>
         <label class="field-label">API Base URL</label>
-        <input type="text" name="openai_api_base" id="openai-api-base"
-               value="{{ openai_api_base }}"
+        <input type="text" id="openai-api-base" value="{{ openai_api_base }}"
                placeholder="https://api.openai.com/v1">
-
         <label class="field-label">
-            <span class="status-dot {% if openai_key_set %}ok{% else %}missing{% endif %}"></span>
-            API Key
+            <span class="status-dot {% if openai_key_set %}ok{% else %}missing{% endif %}"></span>API Key
         </label>
         <div class="key-wrap">
-            <input type="password" name="openai_key" id="openai-key"
+            <input type="password" id="openai-key"
                    placeholder="{% if openai_key_set %}已配置（留空保持不变）{% else %}sk-...{% endif %}">
             <button type="button" class="key-toggle" onclick="toggleKey('openai-key',this)">显示</button>
         </div>
-
         <label class="field-label">模型</label>
         <div class="model-row">
             <select id="openai-model-select" onchange="if(this.value) document.getElementById('openai-model-input').value=this.value">
                 <option value="">-- 从列表选择 --</option>
                 {% for m in preset_models.openai %}
-                <option value="{{ m }}"
-                    {% if m == model and (provider == 'openai' or is_custom) %}selected{% endif %}>{{ m }}</option>
+                <option value="{{ m }}" {% if m == openai_model %}selected{% endif %}>{{ m }}</option>
                 {% endfor %}
             </select>
             <button type="button" class="fetch-btn" onclick="fetchModels('openai')">查询可用模型</button>
         </div>
-        <input type="text" name="model" id="openai-model-input"
-               value="{% if provider == 'openai' or is_custom %}{{ model }}{% endif %}"
-               placeholder="或直接输入模型名，如 deepseek-chat">
+        <input type="text" id="openai-model-input" value="{{ openai_model }}" placeholder="或直接输入模型名">
         <p class="hint">下拉选择后自动填入，也可手动输入任意模型名。</p>
-        <div id="openai-fetch-result" style="font-size: 12px; color: #7f8c8d;"></div>
+        <div id="openai-fetch-result" style="font-size:12px;color:#7f8c8d;"></div>
     </div>
 
     <!-- Claude 配置 -->
     <div class="card config-section" id="section-claude"
          {% if provider != 'claude' %}style="display:none"{% endif %}>
         <h3>Claude (Anthropic) 配置</h3>
-
         <label class="field-label">
-            <span class="status-dot {% if claude_key_set %}ok{% else %}missing{% endif %}"></span>
-            Anthropic API Key
+            <span class="status-dot {% if claude_key_set %}ok{% else %}missing{% endif %}"></span>Anthropic API Key
         </label>
         <div class="key-wrap">
-            <input type="password" name="claude_key" id="claude-key"
+            <input type="password" id="claude-key"
                    placeholder="{% if claude_key_set %}已配置（留空保持不变）{% else %}sk-ant-...{% endif %}">
             <button type="button" class="key-toggle" onclick="toggleKey('claude-key',this)">显示</button>
         </div>
-
         <label class="field-label">模型</label>
         <div class="model-row">
-            <select id="claude-model-select"
-                    onchange="if(this.value) document.getElementById('claude-model-input').value=this.value">
+            <select id="claude-model-select" onchange="if(this.value) document.getElementById('claude-model-input').value=this.value">
                 <option value="">-- 从列表选择 --</option>
                 {% for m in preset_models.claude %}
-                <option value="{{ m }}" {% if m == model and provider == 'claude' %}selected{% endif %}>{{ m }}</option>
+                <option value="{{ m }}" {% if m == claude_model %}selected{% endif %}>{{ m }}</option>
                 {% endfor %}
             </select>
         </div>
-        <input type="text" name="model" id="claude-model-input"
-               value="{% if provider == 'claude' %}{{ model }}{% endif %}"
-               placeholder="或手动输入模型名">
+        <input type="text" id="claude-model-input" value="{{ claude_model }}" placeholder="或手动输入模型名">
         <p class="hint">选择预设或手动输入最新模型名。</p>
     </div>
 
@@ -152,74 +143,147 @@
     <div class="card config-section" id="section-qwen"
          {% if provider != 'qwen' %}style="display:none"{% endif %}>
         <h3>通义千问配置</h3>
-
-        <label class="field-label">API Base URL（支持自定义兼容端点）</label>
-        <input type="text" name="openai_api_base" id="qwen-api-base"
-               value="{% if provider == 'qwen' %}{{ openai_api_base }}{% else %}https://dashscope.aliyuncs.com/compatible-mode/v1{% endif %}"
+        <label class="field-label">API Base URL</label>
+        <input type="text" id="qwen-api-base" value="{{ qwen_api_base }}"
                placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1">
-
         <label class="field-label">
-            <span class="status-dot {% if qwen_key_set %}ok{% else %}missing{% endif %}"></span>
-            DashScope API Key
+            <span class="status-dot {% if qwen_key_set %}ok{% else %}missing{% endif %}"></span>DashScope API Key
         </label>
         <div class="key-wrap">
-            <input type="password" name="qwen_key" id="qwen-key"
+            <input type="password" id="qwen-key"
                    placeholder="{% if qwen_key_set %}已配置（留空保持不变）{% else %}sk-...{% endif %}">
             <button type="button" class="key-toggle" onclick="toggleKey('qwen-key',this)">显示</button>
         </div>
-
         <label class="field-label">模型</label>
         <div class="model-row">
-            <select id="qwen-model-select"
-                    onchange="if(this.value) document.getElementById('qwen-model-input').value=this.value">
+            <select id="qwen-model-select" onchange="if(this.value) document.getElementById('qwen-model-input').value=this.value">
                 <option value="">-- 从列表选择 --</option>
                 {% for m in preset_models.qwen %}
-                <option value="{{ m }}" {% if m == model and provider == 'qwen' %}selected{% endif %}>{{ m }}</option>
+                <option value="{{ m }}" {% if m == qwen_model %}selected{% endif %}>{{ m }}</option>
                 {% endfor %}
             </select>
             <button type="button" class="fetch-btn" onclick="fetchModels('qwen')">查询可用模型</button>
         </div>
-        <input type="text" name="model" id="qwen-model-input"
-               value="{% if provider == 'qwen' %}{{ model }}{% endif %}"
-               placeholder="或手动输入模型名，如 qwen-max-latest">
+        <input type="text" id="qwen-model-input" value="{{ qwen_model }}" placeholder="或手动输入模型名">
         <p class="hint">选择预设或手动输入最新模型名。</p>
-        <div id="qwen-fetch-result" style="font-size: 12px; color: #7f8c8d;"></div>
+        <div id="qwen-fetch-result" style="font-size:12px;color:#7f8c8d;"></div>
     </div>
 
     <!-- 其他配置 -->
     <div class="card config-section">
         <h3>其他配置</h3>
         <label class="field-label">每日预算（美元/人民币）</label>
-        <input type="number" name="daily_budget" value="{{ daily_budget }}" min="0" step="0.1" style="max-width: 200px;">
+        <input type="number" name="daily_budget" value="{{ daily_budget }}" min="0" step="0.1" style="max-width:200px;">
         <label class="field-label">数据库路径（只读）</label>
-        <input type="text" value="{{ database_url }}" disabled style="background: #f5f5f5; color: #999; margin-bottom: 0;">
+        <input type="text" value="{{ database_url }}" disabled style="background:#f5f5f5;color:#999;margin-bottom:0;">
     </div>
 
-    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 40px;">
-        <button type="submit" class="btn btn-success">保存配置</button>
-        <div id="save-result" style="font-size: 13px;"></div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <button type="submit" class="btn btn-success">保存内置提供商配置</button>
+        <div id="save-result" style="font-size:13px;"></div>
     </div>
 </form>
+
+<!-- 自定义 provider 管理（独立于内置 provider 表单） -->
+<div class="card config-section" id="section-custom"
+     {% if not is_custom %}style="display:none"{% endif %}>
+    <h3>自定义提供商管理</h3>
+    <div id="cp-list-wrap">
+        {% if custom_providers %}
+        <table class="cp-table">
+            <thead>
+                <tr>
+                    <th>名称</th><th>API Base</th><th>模型</th><th>状态</th><th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="cp-tbody">
+            {% for p in custom_providers %}
+            <tr id="cp-row-{{ p.name }}">
+                <td><strong>{{ p.name }}</strong></td>
+                <td style="color:#7f8c8d;font-size:12px;">{{ p.api_base }}</td>
+                <td>{{ p.model }}</td>
+                <td>
+                    {% if provider == p.name %}
+                    <span class="badge-active">激活中</span>
+                    {% else %}
+                    <span class="badge-inactive">未激活</span>
+                    {% endif %}
+                </td>
+                <td style="white-space:nowrap;">
+                    {% if provider != p.name %}
+                    <button class="btn-sm primary" onclick="activateProvider('{{ p.name }}')">激活</button>
+                    {% endif %}
+                    <button class="btn-sm" onclick="editProvider('{{ p.name }}','{{ p.api_base }}','{{ p.model }}')">编辑</button>
+                    <button class="btn-sm danger" onclick="deleteProvider('{{ p.name }}')">删除</button>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p id="cp-empty" style="color:#95a5a6;font-size:13px;">暂无自定义提供商，点击下方按钮添加。</p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top:12px;">
+        <button type="button" class="fetch-btn" onclick="showCpForm()">+ 新增自定义提供商</button>
+    </div>
+
+    <!-- 新增/编辑表单 -->
+    <div id="cp-form" style="display:none;">
+        <input type="hidden" id="cp-edit-name">
+        <div class="form-grid">
+            <div>
+                <label class="field-label">名称（唯一标识，如 deepseek）</label>
+                <input type="text" id="cp-name" placeholder="deepseek">
+            </div>
+            <div>
+                <label class="field-label">模型名</label>
+                <input type="text" id="cp-model" placeholder="deepseek-chat">
+            </div>
+            <div>
+                <label class="field-label">API Base URL</label>
+                <input type="text" id="cp-base" placeholder="https://api.deepseek.com/v1">
+            </div>
+            <div>
+                <label class="field-label">API Key</label>
+                <div class="key-wrap" style="margin-bottom:0;">
+                    <input type="password" id="cp-key" placeholder="sk-...（编辑时留空保持不变）">
+                    <button type="button" class="key-toggle" onclick="toggleKey('cp-key',this)">显示</button>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:8px;">
+            <div class="model-row">
+                <select id="cp-model-select" onchange="if(this.value) document.getElementById('cp-model').value=this.value" style="flex:1;margin-bottom:0;">
+                    <option value="">-- 查询后从列表选择 --</option>
+                </select>
+                <button type="button" class="fetch-btn" onclick="fetchCpModels()">查询可用模型</button>
+            </div>
+            <div id="cp-fetch-result" style="font-size:12px;color:#7f8c8d;margin-top:4px;"></div>
+        </div>
+        <div id="cp-form-actions">
+            <button type="button" class="btn btn-success" onclick="saveCpForm()">保存</button>
+            <button type="button" class="fetch-btn" onclick="hideCpForm()">取消</button>
+            <span id="cp-form-msg" style="font-size:13px;margin-left:8px;"></span>
+        </div>
+    </div>
+    <div id="cp-action-msg" style="font-size:13px;margin-top:8px;"></div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+const _activeProvider = {{ provider | tojson }};
+
 function selectProvider(p, btn) {
     document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('selected'));
     btn.classList.add('selected');
-
-    // 显示/隐藏各 section
-    document.getElementById('section-endpoint').style.display =
-        (p === 'openai' || p === 'custom') ? 'block' : 'none';
+    document.getElementById('section-openai').style.display = p === 'openai' ? 'block' : 'none';
     document.getElementById('section-claude').style.display = p === 'claude' ? 'block' : 'none';
-    document.getElementById('section-qwen').style.display = p === 'qwen' ? 'block' : 'none';
-    document.getElementById('custom-name-row').style.display = p === 'custom' ? 'block' : 'none';
-
+    document.getElementById('section-qwen').style.display   = p === 'qwen'   ? 'block' : 'none';
+    document.getElementById('section-custom').style.display = p === 'custom' ? 'block' : 'none';
     document.getElementById('provider-input').value = p;
-
-    // 更新端点标题
-    const title = document.getElementById('endpoint-title');
-    if (title) title.textContent = p === 'custom' ? '自定义接口配置' : 'OpenAI 接口配置';
 }
 
 function toggleKey(id, btn) {
@@ -229,26 +293,23 @@ function toggleKey(id, btn) {
 }
 
 async function fetchModels(scope) {
-    const baseId = scope === 'qwen' ? 'qwen-api-base' : 'openai-api-base';
-    const keyId = scope === 'qwen' ? 'qwen-key' : 'openai-key';
-    const selId = scope === 'qwen' ? 'qwen-model-select' : 'openai-model-select';
-    const resultId = scope === 'qwen' ? 'qwen-fetch-result' : 'openai-fetch-result';
-
-    const base = document.getElementById(baseId).value.trim();
-    const key = document.getElementById(keyId).value.trim();
-    const resultEl = document.getElementById(resultId);
-    const sel = document.getElementById(selId);
-
+    const map = {
+        openai: { base:'openai-api-base', key:'openai-key', sel:'openai-model-select', result:'openai-fetch-result' },
+        qwen:   { base:'qwen-api-base',   key:'qwen-key',   sel:'qwen-model-select',   result:'qwen-fetch-result' },
+    };
+    const ids = map[scope];
+    const base = document.getElementById(ids.base).value.trim();
+    const key  = document.getElementById(ids.key).value.trim();
+    const resultEl = document.getElementById(ids.result);
+    const sel = document.getElementById(ids.sel);
     if (!base) { resultEl.textContent = '请先填写 API Base URL'; return; }
     resultEl.textContent = '查询中...';
-
     try {
         const params = new URLSearchParams({ api_base: base });
         if (key) params.append('api_key', key);
         const resp = await fetch('/settings/models?' + params.toString());
         const data = await resp.json();
         if (data.error) { resultEl.textContent = '查询失败：' + data.error; return; }
-
         sel.innerHTML = '<option value="">-- 从列表选择 --</option>';
         data.models.forEach(m => {
             const opt = document.createElement('option');
@@ -261,37 +322,131 @@ async function fetchModels(scope) {
     }
 }
 
-// 提交前确保只有当前 provider 的 model input 名称为 "model"
+// 提交前将当前 provider 的字段值注入 hidden input
 document.querySelector('form').addEventListener('submit', function() {
     const p = document.getElementById('provider-input').value;
-
-    // 先把所有 model input 改名，避免重复提交
-    ['openai-model-input', 'claude-model-input', 'qwen-model-input'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.name = '_model_unused';
-    });
-    ['openai-model-select', 'claude-model-select', 'qwen-model-select'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.name = '_sel_unused';
-    });
-
-    // 先重置所有 api_base input 的 name，避免切换 provider 后残留错误 name
-    const ob = document.getElementById('openai-api-base');
-    if (ob) ob.name = '_base_unused';
-    const qb = document.getElementById('qwen-api-base');
-    if (qb) qb.name = '_base_unused';
-
-    // 只激活当前 provider 的 text input
-    if (p === 'claude') {
-        document.getElementById('claude-model-input').name = 'model';
+    document.querySelectorAll('.dynamic-submit').forEach(el => el.remove());
+    function addField(name, value) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = name; inp.value = value;
+        inp.className = 'dynamic-submit';
+        document.querySelector('form').appendChild(inp);
+    }
+    if (p === 'openai') {
+        addField('model', document.getElementById('openai-model-input').value);
+        addField('openai_api_base', document.getElementById('openai-api-base').value);
+        addField('openai_key', document.getElementById('openai-key').value);
+    } else if (p === 'claude') {
+        addField('model', document.getElementById('claude-model-input').value);
+        addField('claude_key', document.getElementById('claude-key').value);
     } else if (p === 'qwen') {
-        document.getElementById('qwen-model-input').name = 'model';
-        if (qb) qb.name = 'openai_api_base';
-    } else {
-        // openai 或 custom
-        document.getElementById('openai-model-input').name = 'model';
-        if (ob) ob.name = 'openai_api_base';
+        addField('model', document.getElementById('qwen-model-input').value);
+        addField('openai_api_base', document.getElementById('qwen-api-base').value);
+        addField('qwen_key', document.getElementById('qwen-key').value);
     }
 });
+
+// ===== 自定义 provider 管理 =====
+
+function showCpForm(name, base, model) {
+    document.getElementById('cp-edit-name').value = name || '';
+    document.getElementById('cp-name').value = name || '';
+    document.getElementById('cp-name').disabled = !!name;
+    document.getElementById('cp-base').value = base || '';
+    document.getElementById('cp-model').value = model || '';
+    document.getElementById('cp-key').value = '';
+    document.getElementById('cp-model-select').innerHTML = '<option value="">-- 查询后从列表选择 --</option>';
+    document.getElementById('cp-fetch-result').textContent = '';
+    document.getElementById('cp-form-msg').textContent = '';
+    document.getElementById('cp-form').style.display = 'block';
+}
+
+function hideCpForm() {
+    document.getElementById('cp-form').style.display = 'none';
+}
+
+function editProvider(name, base, model) {
+    showCpForm(name, base, model);
+    document.getElementById('cp-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function fetchCpModels() {
+    const base = document.getElementById('cp-base').value.trim();
+    const key  = document.getElementById('cp-key').value.trim();
+    const resultEl = document.getElementById('cp-fetch-result');
+    const sel = document.getElementById('cp-model-select');
+    if (!base) { resultEl.textContent = '请先填写 API Base URL'; return; }
+    resultEl.textContent = '查询中...';
+    try {
+        const params = new URLSearchParams({ api_base: base });
+        if (key) params.append('api_key', key);
+        const resp = await fetch('/settings/models?' + params.toString());
+        const data = await resp.json();
+        if (data.error) { resultEl.textContent = '查询失败：' + data.error; return; }
+        sel.innerHTML = '<option value="">-- 从列表选择 --</option>';
+        data.models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            sel.appendChild(opt);
+        });
+        resultEl.textContent = `已加载 ${data.models.length} 个模型`;
+    } catch(e) {
+        resultEl.textContent = '请求失败：' + e.message;
+    }
+}
+
+async function saveCpForm() {
+    const editName = document.getElementById('cp-edit-name').value;
+    const name  = document.getElementById('cp-name').value.trim().toLowerCase();
+    const base  = document.getElementById('cp-base').value.trim();
+    const model = document.getElementById('cp-model').value.trim();
+    const key   = document.getElementById('cp-key').value.trim();
+    const msgEl = document.getElementById('cp-form-msg');
+    if (!name || !base || !model) { msgEl.style.color='#e74c3c'; msgEl.textContent = '名称、API Base、模型均为必填'; return; }
+    msgEl.textContent = '保存中...'; msgEl.style.color = '#7f8c8d';
+    try {
+        const isEdit = !!editName;
+        const url = isEdit ? `/settings/custom-providers/${editName}` : '/settings/custom-providers';
+        const method = isEdit ? 'PUT' : 'POST';
+        const resp = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, api_key: key, api_base: base, model }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { msgEl.style.color='#e74c3c'; msgEl.textContent = data.detail || '保存失败'; return; }
+        msgEl.style.color = '#27ae60'; msgEl.textContent = '已保存';
+        setTimeout(() => location.reload(), 600);
+    } catch(e) {
+        msgEl.style.color='#e74c3c'; msgEl.textContent = '请求失败：' + e.message;
+    }
+}
+
+async function deleteProvider(name) {
+    if (!confirm(`确认删除提供商 "${name}"？`)) return;
+    const msgEl = document.getElementById('cp-action-msg');
+    try {
+        const resp = await fetch(`/settings/custom-providers/${name}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (!resp.ok) { msgEl.style.color='#e74c3c'; msgEl.textContent = data.detail || '删除失败'; return; }
+        msgEl.style.color = '#27ae60'; msgEl.textContent = `已删除 ${name}`;
+        setTimeout(() => location.reload(), 600);
+    } catch(e) {
+        msgEl.style.color='#e74c3c'; msgEl.textContent = '请求失败：' + e.message;
+    }
+}
+
+async function activateProvider(name) {
+    const msgEl = document.getElementById('cp-action-msg');
+    try {
+        const resp = await fetch(`/settings/custom-providers/${name}/activate`, { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) { msgEl.style.color='#e74c3c'; msgEl.textContent = data.detail || '激活失败'; return; }
+        msgEl.style.color = '#27ae60'; msgEl.textContent = `已激活 ${name}（模型：${data.model}）`;
+        setTimeout(() => location.reload(), 800);
+    } catch(e) {
+        msgEl.style.color='#e74c3c'; msgEl.textContent = '请求失败：' + e.message;
+    }
+}
 </script>
 {% endblock %}

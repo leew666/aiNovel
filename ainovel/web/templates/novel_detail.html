@@ -2,11 +2,118 @@
 
 {% block title %}{{ novel.title }} - 项目详情{% endblock %}
 
+{% block extra_head %}
+<style>
+.step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+.step-badge.done   { background: #27ae60; color: white; }
+.step-badge.active { background: #3498db; color: white; }
+.step-badge.todo   { background: #ecf0f1; color: #95a5a6; border: 2px solid #ddd; }
+
+.step-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.step-header h3 { margin: 0; font-size: 16px; }
+
+.result-box {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 14px;
+    margin-top: 12px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.7;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.htmx-request .spinner-inline { display: inline-block !important; }
+.spinner-inline {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid #ccc;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+/* 步骤连接线 */
+.steps-progress {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background: #ecf0f1;
+    border-radius: 4px;
+    margin-bottom: 24px;
+}
+.steps-progress .step-node {
+    text-align: center;
+    flex-shrink: 0;
+}
+.steps-progress .step-line {
+    flex: 1;
+    height: 2px;
+    margin: 0 4px;
+    margin-bottom: 20px;
+}
+
+/* 进入创作按钮区域 */
+.enter-editor-banner {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    border-radius: 8px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+    margin-bottom: 8px;
+}
+.enter-editor-banner h3 { margin: 0 0 4px; font-size: 16px; }
+.enter-editor-banner p  { margin: 0; font-size: 13px; opacity: 0.85; }
+
+/* 手动输入切换 */
+.input-mode-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.input-mode-tab {
+    padding: 5px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    background: white;
+    color: #555;
+}
+.input-mode-tab.active {
+    background: #3498db;
+    color: white;
+    border-color: #3498db;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="margin-bottom: 16px;">
     <a href="/" style="color: #3498db; text-decoration: none;">← 返回列表</a>
 </div>
 
+<!-- 项目信息头部 -->
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
@@ -20,8 +127,7 @@
             <p style="margin-top: 10px; color: #555;">{{ novel.description }}</p>
             {% endif %}
         </div>
-        <a href="/workflow/{{ novel.id }}" class="btn btn-success">进入创作流程</a>
-        <a href="/novels/{{ novel.id }}/characters" class="btn" style="background: #8e44ad;">角色卡</a>
+        <a href="/novels/{{ novel.id }}/characters" class="btn" style="background: #8e44ad; flex-shrink: 0;">角色卡</a>
     </div>
 </div>
 
@@ -41,27 +147,251 @@
     </div>
 </div>
 
-<!-- 工作流进度 -->
+<!-- 整体进度条 -->
 <div class="card">
-    <h3 style="margin-bottom: 16px;">创作进度</h3>
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #ecf0f1; border-radius: 4px;">
-        {% set steps = [('1','思路'), ('2','世界观'), ('3','大纲'), ('4','细纲'), ('5','创作'), ('6','质检')] %}
+    <h3 style="margin-bottom: 16px;">前置工作流进度</h3>
+    <div class="steps-progress">
+        {% set steps = [('1','创作思路'), ('2','世界观角色'), ('3','生成大纲'), ('4','批量细纲')] %}
         {% for num, label in steps %}
-        <div style="text-align: center;">
+        <div class="step-node">
             <div style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px;
-                {% if novel.current_step >= num|int %}background: #3498db; color: white;{% else %}background: white; color: #95a5a6; border: 2px solid #ddd;{% endif %}
+                {% if novel.current_step > num|int %}background: #27ae60; color: white;
+                {% elif novel.current_step == num|int %}background: #3498db; color: white;
+                {% else %}background: white; color: #95a5a6; border: 2px solid #ddd;{% endif %}
                 font-weight: bold; font-size: 14px;">{{ num }}</div>
             <div style="font-size: 12px; color: {% if novel.current_step >= num|int %}#2c3e50{% else %}#95a5a6{% endif %};">{{ label }}</div>
         </div>
         {% if not loop.last %}
-        <div style="flex: 1; height: 2px; background: {% if novel.current_step > loop.index %}#3498db{% else %}#ddd{% endif %}; margin: 0 4px; margin-bottom: 20px;"></div>
+        <div class="step-line" style="background: {% if novel.current_step > loop.index %}#27ae60{% else %}#ddd{% endif %};"></div>
         {% endif %}
         {% endfor %}
     </div>
-    <div style="margin-top: 16px; text-align: center;">
-        <span style="color: #7f8c8d; font-size: 13px;">当前状态：{{ novel.workflow_status }}</span>
-        &nbsp;&nbsp;
-        <a href="/workflow/{{ novel.id }}" class="btn" style="font-size: 13px; padding: 7px 16px;">继续创作</a>
+    <div style="text-align: center; color: #7f8c8d; font-size: 13px;">
+        当前状态：{{ novel.workflow_status }}
     </div>
 </div>
+
+<!-- 步骤1：创作思路 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 1 %}done{% elif novel.current_step == 1 %}active{% else %}todo{% endif %}">1</span>
+        <h3>创作思路</h3>
+    </div>
+
+    <div class="input-mode-tabs">
+        <button class="input-mode-tab active" onclick="switchMode('step1', 'ai', this)">AI 生成</button>
+        <button class="input-mode-tab" onclick="switchMode('step1', 'manual', this)">手动输入</button>
+    </div>
+
+    <!-- AI 生成模式 -->
+    <div id="step1-ai-mode">
+        <form hx-post="/workflow/{{ novel.id }}/step1"
+              hx-target="#step1-result"
+              hx-swap="innerHTML"
+              hx-indicator="#step1-spinner"
+              hx-ext="json-enc">
+            <textarea name="initial_idea" placeholder="输入初始想法（留空则使用小说描述）" style="min-height: 80px;">{{ novel.description or '' }}</textarea>
+            <button type="submit" class="btn">AI 生成创作思路
+                <span id="step1-spinner" class="spinner-inline"></span>
+            </button>
+        </form>
+    </div>
+
+    <!-- 手动输入模式 -->
+    <div id="step1-manual-mode" style="display: none;">
+        <form hx-put="/workflow/{{ novel.id }}/step1"
+              hx-target="#step1-result"
+              hx-swap="innerHTML"
+              hx-ext="json-enc">
+            <textarea name="planning_content" placeholder="直接输入创作思路内容..." style="min-height: 120px;">{{ novel.planning_content or '' }}</textarea>
+            <button type="submit" class="btn btn-success">保存创作思路</button>
+        </form>
+    </div>
+
+    <div id="step1-result" class="result-box" {% if not novel.planning_content %}style="display:none;"{% endif %}>
+        {% if novel.planning_content %}{{ novel.planning_content }}{% endif %}
+    </div>
+</div>
+
+<!-- 步骤2：世界观和角色 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 2 %}done{% elif novel.current_step == 2 %}active{% else %}todo{% endif %}">2</span>
+        <h3>世界观和角色</h3>
+    </div>
+
+    <div class="input-mode-tabs">
+        <button class="input-mode-tab active" onclick="switchMode('step2', 'ai', this)">AI 生成</button>
+        <button class="input-mode-tab" onclick="switchMode('step2', 'manual', this)">手动输入</button>
+    </div>
+
+    <!-- AI 生成模式 -->
+    <div id="step2-ai-mode">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">基于创作思路，自动生成世界观设定和主要角色。</p>
+        <button hx-post="/workflow/{{ novel.id }}/step2"
+                hx-target="#step2-result"
+                hx-swap="innerHTML"
+                hx-indicator="#step2-spinner"
+                class="btn">AI 生成世界观和角色
+            <span id="step2-spinner" class="spinner-inline"></span>
+        </button>
+    </div>
+
+    <!-- 手动输入模式 -->
+    <div id="step2-manual-mode" style="display: none;">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">手动输入世界观设定后，可前往<a href="/novels/{{ novel.id }}/characters" style="color: #8e44ad;">角色卡</a>管理角色。</p>
+        <textarea id="step2-manual-text" placeholder="输入世界观设定内容..." style="min-height: 120px;"></textarea>
+        <button class="btn btn-success" onclick="saveStep2Manual()">保存世界观设定</button>
+    </div>
+
+    <div id="step2-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤3：大纲 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 3 %}done{% elif novel.current_step == 3 %}active{% else %}todo{% endif %}">3</span>
+        <h3>生成大纲</h3>
+    </div>
+
+    <div class="input-mode-tabs">
+        <button class="input-mode-tab active" onclick="switchMode('step3', 'ai', this)">AI 生成</button>
+        <button class="input-mode-tab" onclick="switchMode('step3', 'manual', this)">手动输入</button>
+    </div>
+
+    <!-- AI 生成模式 -->
+    <div id="step3-ai-mode">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">生成分卷分章的整体大纲结构。</p>
+        <button hx-post="/workflow/{{ novel.id }}/step3"
+                hx-target="#step3-result"
+                hx-swap="innerHTML"
+                hx-indicator="#step3-spinner"
+                class="btn">AI 生成大纲
+            <span id="step3-spinner" class="spinner-inline"></span>
+        </button>
+    </div>
+
+    <!-- 手动输入模式 -->
+    <div id="step3-manual-mode" style="display: none;">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">手动输入大纲后，系统将解析卷/章节结构。格式：每行一个章节，用"第X卷"标记分卷。</p>
+        <textarea id="step3-manual-text" placeholder="第一卷 起源&#10;第一章 开始&#10;第二章 发展&#10;&#10;第二卷 高潮&#10;第三章 转折" style="min-height: 160px; font-family: monospace;"></textarea>
+        <button class="btn btn-success" onclick="saveStep3Manual()">保存大纲</button>
+    </div>
+
+    <div id="step3-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 步骤4：批量细纲 -->
+<div class="card">
+    <div class="step-header">
+        <span class="step-badge {% if novel.current_step > 4 %}done{% elif novel.current_step == 4 %}active{% else %}todo{% endif %}">4</span>
+        <h3>批量生成细纲</h3>
+    </div>
+
+    <div class="input-mode-tabs">
+        <button class="input-mode-tab active" onclick="switchMode('step4', 'ai', this)">AI 批量生成</button>
+        <button class="input-mode-tab" onclick="switchMode('step4', 'manual', this)">逐章手动</button>
+    </div>
+
+    <!-- AI 批量生成模式 -->
+    <div id="step4-ai-mode">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">为所有章节批量生成详细细纲（场景、冲突、节奏）。</p>
+        <button hx-post="/workflow/{{ novel.id }}/step4/batch"
+                hx-target="#step4-result"
+                hx-swap="innerHTML"
+                hx-indicator="#step4-spinner"
+                class="btn">AI 批量生成细纲
+            <span id="step4-spinner" class="spinner-inline"></span>
+        </button>
+    </div>
+
+    <!-- 逐章手动模式 -->
+    <div id="step4-manual-mode" style="display: none;">
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">选择章节后进入章节编辑器，可在右侧手动填写细纲。</p>
+        {% if chapters_count > 0 %}
+        <p style="font-size: 13px; color: #27ae60;">✓ 已有 {{ chapters_count }} 个章节，可进入章节编辑器逐章操作。</p>
+        {% else %}
+        <p style="font-size: 13px; color: #e67e22;">⚠ 请先完成步骤3生成大纲，才能进行逐章细纲编辑。</p>
+        {% endif %}
+    </div>
+
+    <div id="step4-result" class="result-box" style="display: none;"></div>
+</div>
+
+<!-- 进入章节创作区 -->
+{% if chapters_count > 0 %}
+<div class="enter-editor-banner">
+    <div>
+        <h3>进入章节创作</h3>
+        <p>前置工作流完成后，在章节编辑器中逐章创作、质量检查和向量化管理。</p>
+    </div>
+    <a href="/novels/editor/{{ novel.id }}" class="btn" style="background: white; color: #2980b9; font-weight: bold; flex-shrink: 0;">
+        进入章节编辑器 →
+    </a>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 20px; color: #7f8c8d;">
+    <p>完成步骤3（生成大纲）后，即可进入章节编辑器进行章节创作。</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/* 切换 AI/手动 输入模式 */
+function switchMode(step, mode, btn) {
+    const aiEl = document.getElementById(`${step}-ai-mode`);
+    const manualEl = document.getElementById(`${step}-manual-mode`);
+    const tabs = btn.parentElement.querySelectorAll('.input-mode-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    if (mode === 'ai') {
+        aiEl.style.display = '';
+        manualEl.style.display = 'none';
+    } else {
+        aiEl.style.display = 'none';
+        manualEl.style.display = '';
+    }
+}
+
+/* 步骤2 手动保存（世界观无专用 API，提示用户去角色卡） */
+function saveStep2Manual() {
+    const text = document.getElementById('step2-manual-text').value.trim();
+    if (!text) return;
+    const result = document.getElementById('step2-result');
+    result.style.display = 'block';
+    result.textContent = '✓ 世界观内容已记录（本地预览）。如需持久化，请通过 AI 生成或在角色卡中管理角色设定。';
+}
+
+/* 步骤3 手动保存（提示） */
+function saveStep3Manual() {
+    const text = document.getElementById('step3-manual-text').value.trim();
+    if (!text) return;
+    const result = document.getElementById('step3-result');
+    result.style.display = 'block';
+    result.textContent = '⚠ 手动大纲暂不支持自动解析为卷/章节结构，请使用 AI 生成后再编辑，或直接在章节编辑器中管理章节。';
+}
+
+/* 有结果时自动显示 result-box */
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const target = evt.detail.target;
+    if (target && target.classList.contains('result-box')) {
+        if (target.innerHTML.trim()) {
+            target.style.display = 'block';
+        }
+    }
+});
+
+/* 将 JSON 响应格式化显示 */
+document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    const ct = evt.detail.xhr.getResponseHeader('content-type') || '';
+    if (ct.includes('application/json')) {
+        try {
+            const json = JSON.parse(evt.detail.serverResponse);
+            evt.detail.serverResponse = '<pre>' + JSON.stringify(json, null, 2) + '</pre>';
+        } catch(e) {}
+    }
+});
+</script>
 {% endblock %}

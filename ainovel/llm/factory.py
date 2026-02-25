@@ -246,10 +246,7 @@ class LLMFactory:
                 **client_kwargs,
             )
         else:
-            # 未注册 provider：回退到 OpenAI 兼容接口
-            logger.info(
-                f"未注册提供商 '{config.provider}'，回退 OpenAI 兼容接口: {config.openai_api_base}"
-            )
+            # 自定义 provider：直接走 OpenAI 兼容接口
             client = OpenAIClient(
                 api_key=config.openai_api_key,
                 model=config.model,

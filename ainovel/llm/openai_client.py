@@ -109,7 +109,15 @@ class OpenAIClient(BaseLLMClient):
             )
 
             # 提取结果
-            content = response.choices[0].message.content
+            # 部分推理模型（如 DeepSeek-R1 兼容接口）将输出放在 reasoning_content 而非 content
+            message = response.choices[0].message
+            logger.debug(f"原始message对象: {message}")
+            logger.debug(f"message.__dict__: {message.__dict__}")
+            logger.debug(f"choices[0].__dict__: {response.choices[0].__dict__}")
+            logger.debug(f"response model_extra: {response.model_extra}")
+            content = message.content
+            if not content:
+                content = getattr(message, "reasoning_content", None) or ""
             usage = response.usage
 
             # 计算成本
