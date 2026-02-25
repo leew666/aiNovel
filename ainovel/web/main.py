@@ -118,7 +118,9 @@ from ainovel.web.routers import style
 from ainovel.web.routers import settings as settings_router
 from ainovel.web.routers import characters as characters_router
 from ainovel.web.routers import importer as importer_router
+from ainovel.web.routers import genres as genres_router
 
+app.include_router(genres_router.router, prefix="/genres", tags=["题材与情节"])
 app.include_router(novels.router, prefix="/novels", tags=["小说项目"])
 app.include_router(workflow.router, prefix="/workflow", tags=["创作流程"])
 app.include_router(style.router, prefix="/workflow", tags=["文风学习"])

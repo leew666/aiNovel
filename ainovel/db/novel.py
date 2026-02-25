@@ -46,6 +46,10 @@ class Novel(Base, TimestampMixin):
     genre: Mapped[str | None] = mapped_column(
         String(50), nullable=True, comment="小说类型（如玄幻、都市、科幻）"
     )
+    # 情节标签：逗号分隔的 plot_id 列表，如 "rebirth,revenge,face_slap"
+    plots: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="情节流派标签（逗号分隔的 plot_id）"
+    )
     status: Mapped[NovelStatus] = mapped_column(
         SQLEnum(NovelStatus),
         default=NovelStatus.DRAFT,

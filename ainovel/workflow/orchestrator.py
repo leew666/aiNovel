@@ -118,8 +118,13 @@ class WorkflowOrchestrator:
                 missing_data="initial_idea或novel.description"
             )
 
-        # 生成创作思路
-        result = self.planning_gen.generate_planning(initial_idea=idea)
+        # 生成创作思路（注入题材与情节上下文）
+        plot_ids = [p for p in (novel.plots or "").split(",") if p]
+        result = self.planning_gen.generate_planning(
+            initial_idea=idea,
+            genre_id=novel.genre or None,
+            plot_ids=plot_ids or None,
+        )
 
         # 保存到数据库
         novel.planning_content = result["planning"]

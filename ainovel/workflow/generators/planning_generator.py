@@ -27,6 +27,8 @@ class PlanningGenerator:
     def generate_planning(
         self,
         initial_idea: str,
+        genre_id: str | None = None,
+        plot_ids: list[str] | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4000,
     ) -> Dict[str, Any]:
@@ -35,6 +37,8 @@ class PlanningGenerator:
 
         Args:
             initial_idea: 用户的初始想法
+            genre_id: 主题材 ID
+            plot_ids: 情节流派标签 ID 列表
             temperature: 温度参数
             max_tokens: 最大token数
 
@@ -46,8 +50,10 @@ class PlanningGenerator:
                 "cost": 0.01,     # 成本
             }
         """
-        # 生成提示词
-        prompt = self.prompt_manager.generate_planning_prompt(initial_idea)
+        # 生成提示词（注入类型与情节上下文）
+        prompt = self.prompt_manager.generate_planning_prompt(
+            initial_idea, genre_id=genre_id, plot_ids=plot_ids
+        )
 
         # 调用LLM
         response = self.llm_client.generate(

@@ -60,13 +60,15 @@ async def create_novel(novel_data: NovelCreate, session: SessionDep):
     Returns:
         创建的小说项目
     """
-    # 保存到数据库
+    # 保存到数据库（plots 列表序列化为逗号分隔字符串）
+    plots_str = ",".join(novel_data.plots) if novel_data.plots else None
     created_novel = novel_crud.create(
         session,
         title=novel_data.title,
         description=novel_data.description,
         author=novel_data.author,
         genre=novel_data.genre,
+        plots=plots_str,
     )
 
     return NovelResponse.model_validate(created_novel)
@@ -129,8 +131,10 @@ async def update_novel(novel_id: int, novel_data: NovelUpdate, session: SessionD
     if not novel:
         raise HTTPException(status_code=404, detail="小说项目不存在")
 
-    # 更新字段
+    # 更新字段（plots 列表序列化为逗号分隔字符串）
     update_data = novel_data.model_dump(exclude_unset=True)
+    if "plots" in update_data and isinstance(update_data["plots"], list):
+        update_data["plots"] = ",".join(update_data["plots"]) if update_data["plots"] else None
     updated_novel = novel_crud.update(session, novel_id, **update_data)
 
     return NovelResponse.model_validate(updated_novel)
@@ -172,12 +176,16 @@ async def list_novels_html(request: Request, session: SessionDep):
 async def create_novel_html(request: Request, session: SessionDep):
     """接收表单数据，创建小说，返回新卡片 HTML 片段"""
     form = await request.form()
+    # plots 支持多值表单字段（checkbox 多选）
+    plots_list = form.getlist("plots") if hasattr(form, "getlist") else []
+    plots_str = ",".join(plots_list) if plots_list else None
     novel = novel_crud.create(
         session,
         title=form.get("title", ""),
         description=form.get("description") or None,
         author=form.get("author") or "AI",
         genre=form.get("genre") or None,
+        plots=plots_str,
     )
     return templates.TemplateResponse(
         "partials/novel_card.html",
