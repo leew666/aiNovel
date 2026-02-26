@@ -137,6 +137,35 @@
     </div>
 </div>
 
+<!-- 一键全流程生成 -->
+{% if novel.workflow_status.value == 'completed' %}
+<div id="full-run-area" class="card" style="border-left: 4px solid #27ae60;">
+    <h3 style="color:#27ae60; margin-bottom:12px;">✓ 全部步骤已完成</h3>
+    <p style="color:#7f8c8d; font-size:13px; margin-bottom:12px;">创作流程已全部完成，可进入章节编辑器查看结果。</p>
+    <a href="/novels/editor/{{ novel.id }}" class="btn">进入章节编辑器 →</a>
+</div>
+{% else %}
+<div id="full-run-area" class="card">
+    <h3 style="margin-bottom:6px;">一键全流程生成</h3>
+    <p style="color:#7f8c8d; font-size:13px; margin-bottom:14px;">
+        输入初始想法，系统自动依次完成：创作思路 → 世界观角色 → 大纲 → 细纲 → 章节正文
+    </p>
+    <form hx-post="/workflow/{{ novel.id }}/full-run"
+          hx-target="#full-run-area"
+          hx-swap="outerHTML"
+          hx-ext="json-enc"
+          hx-indicator="#full-run-spinner">
+        <textarea name="initial_idea"
+                  placeholder="输入您的创作想法（留空则使用小说描述）..."
+                  style="min-height: 80px;">{{ novel.description or '' }}</textarea>
+        <button type="submit" class="btn" style="background:#27ae60; margin-top:8px;">
+            开始全流程生成
+            <span id="full-run-spinner" class="spinner-inline"></span>
+        </button>
+    </form>
+</div>
+{% endif %}
+
 <!-- 统计信息 -->
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
     <div class="card" style="text-align: center; padding: 16px;">

@@ -4,8 +4,9 @@
 提供6步创作流程的 API 接口
 """
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel
 
 from ainovel.web.dependencies import SessionDep, OrchestratorDep
@@ -13,6 +14,184 @@ from ainovel.web.schemas.workflow import *
 from ainovel.db.crud import novel_crud, chapter_crud
 
 router = APIRouter()
+
+# 进程内全流程任务状态追踪
+# { novel_id: { "phase": str, "error": str|None, "done": bool } }
+_full_run_tasks: dict[int, dict] = {}
+
+
+class FullRunRequest(BaseModel):
+    """一键全流程生成请求"""
+    initial_idea: Optional[str] = None
+
+
+def _build_status_html(novel_id: int, workflow_status: str, phase: str, error: Optional[str], done: bool) -> str:
+    """构建全流程状态 HTML 片段"""
+    status_order = [
+        "created", "planning", "world_building", "outline",
+        "detail_outline", "writing", "quality_check", "completed",
+    ]
+    try:
+        idx = status_order.index(workflow_status)
+    except ValueError:
+        idx = 0
+
+    # 每步配置：(步骤编号, 显示名称, 该步骤变为 active 时的 idx)
+    steps_cfg = [
+        (1, "创作思路", 1),
+        (2, "世界观角色", 2),
+        (3, "生成大纲", 3),
+        (4, "批量细纲", 4),
+        (5, "章节正文", 5),
+    ]
+
+    step_parts = []
+    for num, label, active_idx in steps_cfg:
+        if idx > active_idx:
+            icon, color = "✓", "#27ae60"
+        elif idx == active_idx:
+            icon, color = "⟳", "#3498db"
+        else:
+            icon, color = str(num), "#95a5a6"
+
+        step_parts.append(
+            f'<div style="text-align:center;flex-shrink:0;">'
+            f'<div style="width:32px;height:32px;border-radius:50%;background:{color};color:white;'
+            f'display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;'
+            f'margin:0 auto 4px;">{icon}</div>'
+            f'<div style="font-size:11px;color:{color};">{label}</div>'
+            f'</div>'
+        )
+        if num < 5:
+            line_color = "#27ae60" if idx > active_idx else "#ddd"
+            step_parts.append(
+                f'<div style="flex:1;height:2px;background:{line_color};'
+                f'margin:0 4px 16px;border-radius:1px;"></div>'
+            )
+
+    steps_html = "".join(step_parts)
+    indicator = f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">{steps_html}</div>'
+
+    if workflow_status == "completed" or (done and not error):
+        return (
+            f'<div id="full-run-area" class="card" style="border-left:4px solid #27ae60;">'
+            f'<h3 style="color:#27ae60;margin-bottom:12px;">✓ 全部步骤已完成</h3>'
+            f'{indicator}'
+            f'<p style="color:#7f8c8d;font-size:13px;margin-bottom:12px;">创作流程已全部完成，可进入章节编辑器查看结果。</p>'
+            f'<a href="/novels/editor/{novel_id}" class="btn">进入章节编辑器 →</a>'
+            f'</div>'
+        )
+
+    if error:
+        safe_error = str(error).replace("<", "&lt;").replace(">", "&gt;")
+        return (
+            f'<div id="full-run-area" class="card" style="border-left:4px solid #e74c3c;">'
+            f'<h3 style="color:#e74c3c;margin-bottom:12px;">✗ 生成失败</h3>'
+            f'{indicator}'
+            f'<p style="background:#fdf0f0;padding:10px;border-radius:6px;font-size:13px;color:#c0392b;">{safe_error}</p>'
+            f'<button hx-post="/workflow/{novel_id}/full-run" hx-target="#full-run-area" '
+            f'hx-swap="outerHTML" hx-ext="json-enc" class="btn" style="margin-top:10px;background:#e74c3c;">重试</button>'
+            f'</div>'
+        )
+
+    # 运行中：包含 HTMX 轮询属性，每 2 秒刷新
+    return (
+        f'<div id="full-run-area" class="card" '
+        f'hx-get="/workflow/{novel_id}/full-run-status-html" '
+        f'hx-trigger="every 2s" hx-swap="outerHTML">'
+        f'<h3 style="margin-bottom:12px;">⚙ 自动生成中...</h3>'
+        f'{indicator}'
+        f'<p style="color:#3498db;font-size:13px;">当前阶段：{phase}</p>'
+        f'</div>'
+    )
+
+
+async def _run_full_workflow(novel_id: int, initial_idea: Optional[str]) -> None:
+    """后台协程：依次执行全部6步工作流"""
+    from ainovel.web.dependencies import get_database, get_llm_client
+    from ainovel.memory.character_db import CharacterDatabase
+    from ainovel.memory.world_db import WorldDatabase
+    from ainovel.workflow.orchestrator import WorkflowOrchestrator
+
+    db = get_database()
+    try:
+        with db.session_scope() as session:
+            llm_client = get_llm_client()
+            orch = WorkflowOrchestrator(
+                llm_client,
+                CharacterDatabase(session),
+                WorldDatabase(session),
+            )
+
+            _full_run_tasks[novel_id]["phase"] = "步骤1：生成创作思路"
+            await asyncio.to_thread(orch.step_1_planning, session, novel_id, initial_idea)
+
+            _full_run_tasks[novel_id]["phase"] = "步骤2：生成世界观和角色"
+            await asyncio.to_thread(orch.step_2_world_building, session, novel_id)
+
+            _full_run_tasks[novel_id]["phase"] = "步骤3~5：生成大纲、细纲和章节正文（耗时较长）"
+            await asyncio.to_thread(
+                orch.run_pipeline,
+                session=session,
+                novel_id=novel_id,
+                from_step=3,
+                to_step=5,
+                max_workers=1,
+            )
+
+            _full_run_tasks[novel_id]["phase"] = "标记完成"
+            await asyncio.to_thread(orch.mark_completed, session, novel_id)
+
+            _full_run_tasks[novel_id] = {"phase": "已完成", "error": None, "done": True}
+    except Exception as exc:
+        _full_run_tasks[novel_id] = {"phase": "失败", "error": str(exc), "done": True}
+
+
+@router.post("/{novel_id}/full-run", response_class=HTMLResponse)
+async def full_run(
+    novel_id: int,
+    request_data: FullRunRequest,
+    session: SessionDep,
+) -> HTMLResponse:
+    """一键全流程生成：后台依次执行步骤1→2→3→4→5→完成，立即返回状态 HTML"""
+    novel = novel_crud.get_by_id(session, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail=f"小说不存在: {novel_id}")
+
+    # 已完成则直接返回完成状态，不重新启动
+    if novel.workflow_status.value == "completed":
+        html = _build_status_html(novel_id, "completed", "已完成", None, True)
+        return HTMLResponse(content=html)
+
+    # 已有运行中任务则直接返回当前状态
+    task = _full_run_tasks.get(novel_id)
+    if task and not task["done"]:
+        html = _build_status_html(novel_id, novel.workflow_status.value, task["phase"], task["error"], task["done"])
+        return HTMLResponse(content=html)
+
+    initial_idea = request_data.initial_idea or novel.description or ""
+    _full_run_tasks[novel_id] = {"phase": "启动中...", "error": None, "done": False}
+    asyncio.create_task(_run_full_workflow(novel_id, initial_idea))
+
+    html = _build_status_html(novel_id, novel.workflow_status.value, "启动中...", None, False)
+    return HTMLResponse(content=html)
+
+
+@router.get("/{novel_id}/full-run-status-html", response_class=HTMLResponse)
+async def full_run_status_html(novel_id: int, session: SessionDep) -> HTMLResponse:
+    """轮询端点：返回当前全流程状态的 HTML 片段"""
+    novel = novel_crud.get_by_id(session, novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail=f"小说不存在: {novel_id}")
+
+    task = _full_run_tasks.get(novel_id)
+    if not task:
+        # 无运行记录但已完成（服务器重启后），仍能正确显示完成状态
+        html = _build_status_html(novel_id, novel.workflow_status.value, "", None, True)
+        return HTMLResponse(content=html)
+
+    html = _build_status_html(novel_id, novel.workflow_status.value, task["phase"], task["error"], task["done"])
+    return HTMLResponse(content=html)
 
 
 @router.get("/{novel_id}/status", response_model=WorkflowStatusResponse)

@@ -30,7 +30,8 @@
       "Bash(do)",
       "Bash(echo:*)",
       "Bash(done)",
-      "Bash(for db in /Users/lee/Documents/github/me/aiNovel/data/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/db/ainovel.db)"
+      "Bash(for db in /Users/lee/Documents/github/me/aiNovel/data/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/db/ainovel.db)",
+      "Bash(grep:*)"
     ]
   }
 }
