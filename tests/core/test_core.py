@@ -278,9 +278,47 @@ class TestOutlineGenerator:
 }
 ```"""
 
-        outline = generator._parse_outline(content)
+        outline, parse_failed = generator._parse_outline(content)
+        assert parse_failed is False
         assert "volumes" in outline
         assert outline["volumes"][0]["title"] == "测试卷"
+
+    def test_generate_outline_retry_on_truncated_response(
+        self, db_session, mock_llm_client, test_novel, test_characters, test_world_data
+    ):
+        """当LLM返回length截断时，应自动重试并成功解析"""
+        mock_llm_client.generate.side_effect = [
+            {
+                "content": "```json\n{\n  \"volumes\": [\n",
+                "usage": {"input_tokens": 100, "output_tokens": 4000, "total_tokens": 4100},
+                "cost": 0.02,
+                "finish_reason": "length",
+            },
+            {
+                "content": """{
+  "volumes": [
+    {
+      "title": "第一卷",
+      "order": 1,
+      "chapters": [{"title": "第一章", "order": 1}]
+    }
+  ]
+}""",
+                "usage": {"input_tokens": 100, "output_tokens": 200, "total_tokens": 300},
+                "cost": 0.01,
+                "finish_reason": "stop",
+            },
+        ]
+
+        generator = OutlineGenerator(mock_llm_client, db_session)
+        result = generator.generate_outline(test_novel.id)
+
+        assert result["parse_failed"] is False
+        assert result["outline"]["volumes"][0]["title"] == "第一卷"
+        assert result["usage"]["total_tokens"] == 4400
+        assert mock_llm_client.generate.call_count == 2
+        assert mock_llm_client.generate.call_args_list[0].kwargs["max_tokens"] == 8000
+        assert mock_llm_client.generate.call_args_list[1].kwargs["max_tokens"] == 12000
 
 
 class TestChapterGenerator:

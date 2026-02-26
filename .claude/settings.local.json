@@ -31,7 +31,8 @@
       "Bash(echo:*)",
       "Bash(done)",
       "Bash(for db in /Users/lee/Documents/github/me/aiNovel/data/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/db/ainovel.db)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(/Users/lee/.vscode/extensions/openai.chatgpt-0.4.76-darwin-arm64/bin/macos-aarch64/codex:*)"
     ]
   }
 }

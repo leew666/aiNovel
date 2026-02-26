@@ -4,6 +4,7 @@
 根据小说基本信息、角色和世界观生成详细的小说大纲
 """
 import json
+import re
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -37,7 +38,7 @@ class OutlineGenerator:
         self,
         novel_id: int,
         temperature: float = 0.7,
-        max_tokens: int = 4000,
+        max_tokens: int = 80000,
     ) -> Dict[str, Any]:
         """
         生成小说大纲
@@ -85,34 +86,89 @@ class OutlineGenerator:
 
         logger.debug(f"大纲生成提示词长度: {len(prompt)} 字符")
 
-        # 5. 调用LLM生成大纲
+        # 5. 调用LLM生成大纲（若输出截断则自动重试一次）
         messages = [{"role": "user", "content": prompt}]
+        max_attempts = 2
+        current_max_tokens = max_tokens
+        total_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        total_cost = 0.0
+        # 续写模式下累积的前半段内容
+        accumulated_content = ""
 
         try:
-            response = self.llm_client.generate(
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+            for attempt in range(1, max_attempts + 1):
+                response = self.llm_client.generate(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=current_max_tokens,
+                )
 
-            content = response["content"]
-            usage = response["usage"]
-            cost = response["cost"]
+                content = response.get("content", "")
+                usage = response.get("usage", {})
+                cost = response.get("cost", 0.0)
+                finish_reason = response.get("finish_reason")
 
-            logger.info(
-                f"大纲生成完成，Token使用: {usage['total_tokens']}, 成本: ${cost:.4f}"
-            )
+                total_usage["input_tokens"] += usage.get("input_tokens", 0)
+                total_usage["output_tokens"] += usage.get("output_tokens", 0)
+                total_usage["total_tokens"] += usage.get("total_tokens", 0)
+                total_cost += cost
 
-            # 6. 解析大纲JSON
-            outline_data, parse_failed = self._parse_outline(content)
+                logger.info(
+                    f"大纲生成尝试 {attempt}/{max_attempts} 完成，"
+                    f"finish_reason={finish_reason}, "
+                    f"累计Token={total_usage['total_tokens']}, "
+                    f"累计成本=${total_cost:.4f}"
+                )
 
-            return {
-                "outline": outline_data,
-                "usage": usage,
-                "cost": cost,
-                "raw_content": content,
-                "parse_failed": parse_failed,
-            }
+                # 续写模式：先尝试直接解析新内容，失败时再尝试合并前半段
+                merged_content = accumulated_content + content if accumulated_content else content
+                parse_content = content if accumulated_content else content
+
+                # 6. 解析大纲JSON：优先解析本次返回，失败时尝试合并内容
+                outline_data, parse_failed = self._parse_outline(parse_content)
+                if parse_failed and accumulated_content:
+                    outline_data, parse_failed = self._parse_outline(merged_content)
+                if not parse_failed:
+                    return {
+                        "outline": outline_data,
+                        "usage": total_usage,
+                        "cost": total_cost,
+                        "raw_content": merged_content,
+                        "parse_failed": False,
+                        "finish_reason": finish_reason,
+                    }
+
+                is_truncated = finish_reason == "length"
+                if is_truncated and attempt < max_attempts:
+                    current_max_tokens = min(current_max_tokens * 2, 12000)
+                    accumulated_content = merged_content
+                    # 重试时只发简洁指令，避免重复原始 prompt 导致输入 token 翻倍
+                    messages = [
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": content},
+                        {
+                            "role": "user",
+                            "content": (
+                                "你的输出被截断了，请继续补全剩余内容，"
+                                "直接从上次截断处续写，保持JSON格式完整，"
+                                "不要重复已输出的内容，不要输出解释文字。"
+                            ),
+                        },
+                    ]
+                    logger.warning(
+                        "检测到大纲输出被截断（finish_reason=length），"
+                        f"准备重试（max_tokens={current_max_tokens}）"
+                    )
+                    continue
+
+                return {
+                    "outline": outline_data,
+                    "usage": total_usage,
+                    "cost": total_cost,
+                    "raw_content": merged_content,
+                    "parse_failed": True,
+                    "finish_reason": finish_reason,
+                }
 
         except Exception as e:
             logger.error(f"大纲生成失败: {e}")
@@ -178,7 +234,7 @@ class OutlineGenerator:
         self,
         novel_id: int,
         temperature: float = 0.7,
-        max_tokens: int = 4000,
+        max_tokens: int = 80000,
     ) -> Dict[str, Any]:
         """
         生成并保存大纲（一步完成）
@@ -227,17 +283,14 @@ class OutlineGenerator:
             (outline_data, parse_failed)
             解析失败时返回空结构和 parse_failed=True，不抛异常
         """
-        # 尝试从代码块中提取JSON
-        if "```json" in content:
-            start = content.find("```json") + 7
-            end = content.find("```", start)
-            json_str = content[start:end].strip()
-        elif "```" in content:
-            start = content.find("```") + 3
-            end = content.find("```", start)
-            json_str = content[start:end].strip()
-        else:
-            json_str = content.strip()
+        json_str = self._extract_json_candidate(content)
+        if not json_str:
+            return {"volumes": []}, True
+
+        # 大概率是输出截断，直接返回失败并留给上层重试
+        if json_str.count("{") > json_str.count("}"):
+            logger.warning("大纲输出疑似被截断：JSON大括号未闭合")
+            return {"volumes": []}, True
 
         try:
             data = json.loads(json_str)
@@ -259,3 +312,25 @@ class OutlineGenerator:
         except json.JSONDecodeError as e:
             logger.error(f"大纲JSON解析失败: {e}\n内容: {json_str[:200]}")
             return {"volumes": []}, True
+
+    def _extract_json_candidate(self, content: str) -> str:
+        """从LLM输出中提取最可能的JSON字符串（支持未闭合代码块）。"""
+        text = (content or "").strip()
+        if not text:
+            return ""
+
+        # 优先提取 ```json ... ```；若代码块未闭合，则提取到文本末尾
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)(?:```|$)", text, re.IGNORECASE)
+        if match:
+            candidate = match.group(1).strip()
+            if candidate:
+                return candidate
+
+        # 回退到首尾花括号包围内容
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return text[start:end + 1].strip()
+        if start != -1:
+            return text[start:].strip()
+        return text

@@ -114,10 +114,17 @@ class OpenAIClient(BaseLLMClient):
 
             # 提取结果
             # 部分推理模型（如 DeepSeek-R1 兼容接口）将输出放在 reasoning_content 而非 content
-            message = response.choices[0].message
+            choice = response.choices[0]
+            message = choice.message
+            finish_reason_raw = getattr(choice, "finish_reason", None)
+            finish_reason = (
+                finish_reason_raw
+                if isinstance(finish_reason_raw, str) and finish_reason_raw
+                else None
+            )
             logger.debug(f"原始message对象: {message}")
             logger.debug(f"message.__dict__: {message.__dict__}")
-            logger.debug(f"choices[0].__dict__: {response.choices[0].__dict__}")
+            logger.debug(f"choices[0].__dict__: {choice.__dict__}")
             logger.debug(f"response model_extra: {response.model_extra}")
             content = message.content
             if not content:
@@ -136,6 +143,7 @@ class OpenAIClient(BaseLLMClient):
                 },
                 "cost": cost,
                 "model": response.model,
+                "finish_reason": finish_reason,
             }
 
             logger.info(
@@ -144,6 +152,8 @@ class OpenAIClient(BaseLLMClient):
                 f"输出: {usage.completion_tokens} tokens, "
                 f"成本: ${cost:.6f}"
             )
+            if finish_reason == "length":
+                logger.warning("OpenAI输出因max_tokens达到上限被截断（finish_reason=length）")
 
             return result
 
