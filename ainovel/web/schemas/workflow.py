@@ -20,6 +20,12 @@ class Step1UpdateRequest(BaseModel):
     planning_content: str = Field(..., description="编辑后的创作思路")
 
 
+class Step2UpdateRequest(BaseModel):
+    """步骤2：用户手动输入世界观内容后更新"""
+
+    world_building_content: str = Field(..., description="手动输入的世界观内容")
+
+
 class Step5Request(BaseModel):
     """步骤5：章节内容生成请求"""
 

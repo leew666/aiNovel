@@ -245,12 +245,19 @@
 
     <!-- 手动输入模式 -->
     <div id="step2-manual-mode" style="display: none;">
-        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">手动输入世界观设定后，可前往<a href="/novels/{{ novel.id }}/characters" style="color: #8e44ad;">角色卡</a>管理角色。</p>
-        <textarea id="step2-manual-text" placeholder="输入世界观设定内容..." style="min-height: 120px;"></textarea>
-        <button class="btn btn-success" onclick="saveStep2Manual()">保存世界观设定</button>
+        <p style="color: #7f8c8d; font-size: 13px; margin-bottom: 12px;">手动输入世界观设定后，可前往<a href="/novels/{{ novel.id }}/characters" style="color: #8e44ad;">角色卡</a>手动新增角色。</p>
+        <form hx-put="/workflow/{{ novel.id }}/step2"
+              hx-target="#step2-result"
+              hx-swap="innerHTML"
+              hx-ext="json-enc">
+            <textarea name="world_building_content" placeholder="输入世界观设定内容..." style="min-height: 120px;">{{ novel.world_building_raw or '' }}</textarea>
+            <button type="submit" class="btn btn-success">保存世界观设定</button>
+        </form>
     </div>
 
-    <div id="step2-result" class="result-box" style="display: none;"></div>
+    <div id="step2-result" class="result-box" {% if not novel.world_building_raw %}style="display:none;"{% endif %}>
+        {% if novel.world_building_raw %}{{ novel.world_building_raw }}{% endif %}
+    </div>
 </div>
 
 <!-- 步骤3：大纲 -->
@@ -359,15 +366,6 @@ function switchMode(step, mode, btn) {
         aiEl.style.display = 'none';
         manualEl.style.display = '';
     }
-}
-
-/* 步骤2 手动保存（世界观无专用 API，提示用户去角色卡） */
-function saveStep2Manual() {
-    const text = document.getElementById('step2-manual-text').value.trim();
-    if (!text) return;
-    const result = document.getElementById('step2-result');
-    result.style.display = 'block';
-    result.textContent = '✓ 世界观内容已记录（本地预览）。如需持久化，请通过 AI 生成或在角色卡中管理角色设定。';
 }
 
 /* 步骤3 手动保存（提示） */

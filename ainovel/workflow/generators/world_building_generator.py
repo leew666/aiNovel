@@ -6,14 +6,15 @@
 import json
 import re
 from typing import Dict, Any, List
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from ainovel.llm.base import BaseLLMClient
 from ainovel.core.prompt_manager import PromptManager
 from ainovel.memory.character_db import CharacterDatabase
 from ainovel.memory.world_db import WorldDatabase
-from ainovel.memory.character import MBTIType
-from ainovel.memory.world_data import WorldDataType
+from ainovel.memory.character import Character, MBTIType
+from ainovel.memory.world_data import WorldData, WorldDataType
 
 
 class WorldBuildingGenerator:
@@ -105,6 +106,10 @@ class WorldBuildingGenerator:
                 "characters_created": 4
             }
         """
+        # 清理该小说的旧角色和世界观数据，避免重复执行步骤2时数据累积
+        session.execute(delete(Character).where(Character.novel_id == novel_id))
+        session.execute(delete(WorldData).where(WorldData.novel_id == novel_id))
+
         world_data_list = world_building_data.get("world_data", [])
         character_list = world_building_data.get("characters", [])
 

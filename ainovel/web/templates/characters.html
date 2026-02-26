@@ -14,10 +14,56 @@
     </div>
 </div>
 
+<!-- 新增角色表单 -->
+<div class="card">
+    <h3 style="margin-bottom: 14px; font-size: 15px;">新增角色</h3>
+    <form method="post" action="/novels/{{ novel.id }}/characters/new">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div>
+                <label style="font-size: 13px; color: #555; display: block; margin-bottom: 4px;">角色名 <span style="color: #e74c3c;">*</span></label>
+                <input type="text" name="name" placeholder="输入角色名称" required style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="font-size: 13px; color: #555; display: block; margin-bottom: 4px;">MBTI 人格</label>
+                <select name="mbti" style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                    <optgroup label="分析家（NT）">
+                        <option value="INTJ">INTJ - 建筑师</option>
+                        <option value="INTP">INTP - 逻辑学家</option>
+                        <option value="ENTJ">ENTJ - 指挥官</option>
+                        <option value="ENTP">ENTP - 辩论家</option>
+                    </optgroup>
+                    <optgroup label="外交家（NF）">
+                        <option value="INFJ">INFJ - 提倡者</option>
+                        <option value="INFP">INFP - 调停者</option>
+                        <option value="ENFJ">ENFJ - 主人公</option>
+                        <option value="ENFP">ENFP - 竞选者</option>
+                    </optgroup>
+                    <optgroup label="守护者（SJ）">
+                        <option value="ISTJ">ISTJ - 物流师</option>
+                        <option value="ISFJ">ISFJ - 守卫者</option>
+                        <option value="ESTJ">ESTJ - 总经理</option>
+                        <option value="ESFJ">ESFJ - 执政官</option>
+                    </optgroup>
+                    <optgroup label="探险家（SP）">
+                        <option value="ISTP">ISTP - 鉴赏家</option>
+                        <option value="ISFP">ISFP - 探险家</option>
+                        <option value="ESTP">ESTP - 企业家</option>
+                        <option value="ESFP">ESFP - 表演者</option>
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="font-size: 13px; color: #555; display: block; margin-bottom: 4px;">背景故事 <span style="color: #e74c3c;">*</span></label>
+            <textarea name="background" placeholder="输入角色背景故事..." required style="min-height: 80px;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">新增角色</button>
+    </form>
+</div>
+
 {% if not characters %}
 <div class="card" style="text-align: center; color: #7f8c8d; padding: 40px;">
-    <p>暂无角色，请先完成创作流程步骤 2（世界观与角色生成）</p>
-    <a href="/novels/view/{{ novel.id }}" class="btn" style="margin-top: 16px;">进入项目详情</a>
+    <p>暂无角色，可在上方表单手动新增，或在步骤 2 使用 AI 自动生成。</p>
 </div>
 {% else %}
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">

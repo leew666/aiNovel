@@ -171,6 +171,36 @@ class WorkflowOrchestrator:
             "message": "创作思路已更新",
         }
 
+    def step_2_update(
+        self, session: Session, novel_id: int, world_building_content: str
+    ) -> Dict[str, Any]:
+        """
+        步骤2：用户手动输入世界观内容后更新
+
+        Args:
+            session: 数据库会话
+            novel_id: 小说ID
+            world_building_content: 用户手动输入的世界观内容（纯文本）
+
+        Returns:
+            更新结果
+        """
+        novel = novel_crud.get_by_id(session, novel_id)
+        if not novel:
+            raise NovelNotFoundError(novel_id)
+
+        # 将手动输入内容保存到 world_building_raw，与 AI 生成解析失败时的存储路径一致
+        novel.world_building_raw = world_building_content
+        novel.workflow_status = WorkflowStatus.WORLD_BUILDING
+        novel.current_step = 2
+        session.commit()
+
+        return {
+            "novel_id": novel_id,
+            "world_building_raw": world_building_content,
+            "message": "世界观内容已保存",
+        }
+
     def step_2_world_building(
         self, session: Session, novel_id: int
     ) -> Dict[str, Any]:
@@ -209,6 +239,11 @@ class WorkflowOrchestrator:
         novel.workflow_status = WorkflowStatus.WORLD_BUILDING
         novel.current_step = 2
         session.commit()
+
+        # 将嵌套的 world_building 字段展开到顶层，以匹配 Step2Response 结构
+        world_building = result.pop("world_building", {})
+        result["characters"] = world_building.get("characters", [])
+        result["world_data"] = world_building.get("world_data", [])
 
         result["novel_id"] = novel_id
         result["workflow_status"] = novel.workflow_status.value

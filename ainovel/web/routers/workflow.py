@@ -67,6 +67,21 @@ async def step2_world_building(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.put("/{novel_id}/step2", response_model=dict)
+async def step2_update(
+    novel_id: int,
+    request_data: Step2UpdateRequest,
+    session: SessionDep,
+    orch: OrchestratorDep,
+):
+    """步骤2：用户手动输入世界观内容"""
+    try:
+        result = orch.step_2_update(session, novel_id, request_data.world_building_content)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/{novel_id}/step3", response_model=Step3Response)
 async def step3_outline(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤3：生成大纲"""
