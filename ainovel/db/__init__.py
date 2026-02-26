@@ -9,6 +9,9 @@ from ainovel.db.novel import Novel, NovelStatus
 from ainovel.db.volume import Volume
 from ainovel.db.chapter import Chapter
 from ainovel.db.style_profile import StyleProfile
+from ainovel.memory.character import Character
+from ainovel.memory.world_data import WorldData
+from ainovel.memory.plot_arc import PlotArc
 from ainovel.db.crud import (
     CRUDBase,
     NovelCRUD,
@@ -35,6 +38,9 @@ __all__ = [
     "Volume",
     "Chapter",
     "StyleProfile",
+    "Character",
+    "WorldData",
+    "PlotArc",
     # CRUD
     "CRUDBase",
     "NovelCRUD",

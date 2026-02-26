@@ -23,7 +23,9 @@
       "mcp__memory__search_nodes",
       "mcp__memory__create_entities",
       "mcp__memory__create_relations",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "Bash(python3:*)",
+      "Bash(.venv/bin/python:*)"
     ]
   }
 }

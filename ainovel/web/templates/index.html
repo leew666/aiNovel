@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}首页 - AI小说创作系统{% endblock %}
+{% block title %}首页{% endblock %}
 
 {% block content %}
 {% if not api_key_set %}
@@ -16,7 +16,7 @@
 {% endif %}
 
 <div class="card">
-    <h2>📚 我的小说项目</h2>
+    <h2>📚 我的项目</h2>
 
     <div style="margin-bottom: 20px;">
         <button class="btn btn-success" onclick="showCreateForm()">+ 创建新项目</button>
@@ -41,7 +41,7 @@
     <div id="novels-list"
          hx-get="/novels/list-html"
          hx-trigger="load"
-         hx-indicator=".loading">
+         hx-swap="innerHTML">
         <div class="loading">
             <div class="spinner"></div>
             <p>加载中...</p>

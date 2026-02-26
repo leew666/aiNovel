@@ -91,6 +91,7 @@ class Database:
             "novels": [
                 ("author", "VARCHAR(100)"),
                 ("genre", "VARCHAR(50)"),
+                ("plots", "VARCHAR(500)"),
                 ("status", "VARCHAR(20) DEFAULT 'draft'"),
                 ("global_config", "TEXT"),
                 ("workflow_status", "VARCHAR(50) DEFAULT 'created'"),

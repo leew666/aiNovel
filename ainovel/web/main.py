@@ -56,7 +56,7 @@ async def startup_event():
     data_dir.mkdir(exist_ok=True)
     logger.info(f"✅ 数据目录已创建: {data_dir.absolute()}")
 
-    logger.info(f"🌐 Web 服务器运行在 http://{settings.HOST}:{settings.PORT}")
+    logger.info(f"🌐 Web 服务器运行在 http://127.0.0.1:{settings.PORT}")
 
 
 @app.on_event("shutdown")
