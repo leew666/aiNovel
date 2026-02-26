@@ -94,14 +94,15 @@ class QualityCheckGenerator:
 
         raw_content = response["content"]
 
-        # 解析JSON
-        quality_report = self._parse_quality_report(raw_content)
+        # 解析JSON，失败时返回空结构并标记
+        quality_report, parse_failed = self._parse_quality_report(raw_content)
 
         return {
             "quality_report": quality_report,
             "usage": response.get("usage", {}),
             "cost": response.get("cost", 0),
             "raw_content": raw_content,
+            "parse_failed": parse_failed,
         }
 
     def save_quality_report(
@@ -122,12 +123,16 @@ class QualityCheckGenerator:
         if not chapter:
             raise ValueError(f"章节不存在: {chapter_id}")
 
-        chapter.quality_report = json.dumps(quality_report, ensure_ascii=False, indent=2)
+        # 解析失败时直接存原始文本供用户编辑
+        if isinstance(quality_report, dict):
+            chapter.quality_report = json.dumps(quality_report, ensure_ascii=False, indent=2)
+        else:
+            chapter.quality_report = str(quality_report)
         session.commit()
 
         # 统计问题数量
-        issues = quality_report.get("issues", [])
-        overall_score = quality_report.get("overall_score", 0)
+        issues = quality_report.get("issues", []) if isinstance(quality_report, dict) else []
+        overall_score = quality_report.get("overall_score", 0) if isinstance(quality_report, dict) else 0
 
         return {
             "chapter_id": chapter_id,
@@ -162,10 +167,12 @@ class QualityCheckGenerator:
             max_tokens=max_tokens,
         )
 
+        # 解析失败时用原始文本代替空dict入库
+        report_to_save = result["raw_content"] if result["parse_failed"] else result["quality_report"]
         stats = self.save_quality_report(
             session=session,
             chapter_id=chapter_id,
-            quality_report=result["quality_report"],
+            quality_report=report_to_save,
         )
 
         result["stats"] = stats
@@ -267,18 +274,13 @@ class QualityCheckGenerator:
 
         return "\n".join(context_parts)
 
-    def _parse_quality_report(self, content: str) -> Dict[str, Any]:
+    def _parse_quality_report(self, content: str) -> tuple[Dict[str, Any], bool]:
         """
         解析LLM输出的质量报告JSON
 
-        Args:
-            content: LLM输出内容
-
         Returns:
-            质量报告字典
-
-        Raises:
-            ValueError: JSON解析失败
+            (quality_report, parse_failed)
+            解析失败时返回空结构和 parse_failed=True，不抛异常
         """
         json_match = re.search(r"```json\s*(\{.*?\})\s*```", content, re.DOTALL)
         if json_match:
@@ -288,9 +290,9 @@ class QualityCheckGenerator:
             if json_match:
                 json_str = json_match.group(0)
             else:
-                raise ValueError(f"无法从输出中提取JSON: {content[:200]}")
+                return {"issues": [], "overall_score": 0}, True
 
         try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"JSON解析失败: {e}")
+            return json.loads(json_str), False
+        except json.JSONDecodeError:
+            return {"issues": [], "overall_score": 0}, True

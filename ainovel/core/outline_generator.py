@@ -104,13 +104,14 @@ class OutlineGenerator:
             )
 
             # 6. 解析大纲JSON
-            outline_data = self._parse_outline(content)
+            outline_data, parse_failed = self._parse_outline(content)
 
             return {
                 "outline": outline_data,
                 "usage": usage,
                 "cost": cost,
                 "raw_content": content,
+                "parse_failed": parse_failed,
             }
 
         except Exception as e:
@@ -191,6 +192,22 @@ class OutlineGenerator:
             包含大纲数据、保存统计和token使用情况的结果
         """
         result = self.generate_outline(novel_id, temperature, max_tokens)
+
+        if result["parse_failed"]:
+            # 解析失败时保存原始文本到 novel.outline_raw，跳过入库
+            novel = novel_crud.get_by_id(self.session, novel_id)
+            if novel:
+                novel.outline_raw = result["raw_content"]
+                self.session.commit()
+            return {
+                "outline": result["outline"],
+                "stats": {"volumes_created": 0, "chapters_created": 0},
+                "usage": result["usage"],
+                "cost": result["cost"],
+                "raw_content": result["raw_content"],
+                "parse_failed": True,
+            }
+
         stats = self.save_outline(novel_id, result["outline"])
 
         return {
@@ -198,20 +215,17 @@ class OutlineGenerator:
             "stats": stats,
             "usage": result["usage"],
             "cost": result["cost"],
+            "raw_content": result["raw_content"],
+            "parse_failed": False,
         }
 
-    def _parse_outline(self, content: str) -> Dict[str, Any]:
+    def _parse_outline(self, content: str) -> tuple[Dict[str, Any], bool]:
         """
         解析LLM生成的大纲JSON
 
-        Args:
-            content: LLM生成的文本内容
-
         Returns:
-            解析后的大纲数据
-
-        Raises:
-            ValueError: 如果解析失败
+            (outline_data, parse_failed)
+            解析失败时返回空结构和 parse_failed=True，不抛异常
         """
         # 尝试从代码块中提取JSON
         if "```json" in content:
@@ -228,27 +242,20 @@ class OutlineGenerator:
         try:
             data = json.loads(json_str)
 
-            # 验证数据结构
             if "volumes" not in data:
-                raise ValueError("大纲数据缺少 'volumes' 字段")
+                return {"volumes": []}, True
 
-            # 规范化数据
             for volume in data["volumes"]:
-                if "title" not in volume:
-                    raise ValueError("分卷缺少 'title' 字段")
-                if "order" not in volume:
-                    raise ValueError("分卷缺少 'order' 字段")
+                if "title" not in volume or "order" not in volume:
+                    return {"volumes": []}, True
                 if "chapters" not in volume:
                     volume["chapters"] = []
-
                 for chapter in volume["chapters"]:
-                    if "title" not in chapter:
-                        raise ValueError("章节缺少 'title' 字段")
-                    if "order" not in chapter:
-                        raise ValueError("章节缺少 'order' 字段")
+                    if "title" not in chapter or "order" not in chapter:
+                        return {"volumes": []}, True
 
-            return data
+            return data, False
 
         except json.JSONDecodeError as e:
             logger.error(f"大纲JSON解析失败: {e}\n内容: {json_str[:200]}")
-            raise ValueError(f"大纲JSON解析失败: {e}")
+            return {"volumes": []}, True

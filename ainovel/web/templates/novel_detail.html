@@ -8,57 +8,57 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px; height: 28px;
+    width: 26px; height: 26px;
     border-radius: 50%;
-    font-weight: bold;
-    font-size: 13px;
+    font-weight: 600;
+    font-size: 12px;
     margin-right: 8px;
     flex-shrink: 0;
 }
-.step-badge.done   { background: #27ae60; color: white; }
-.step-badge.active { background: #3498db; color: white; }
-.step-badge.todo   { background: #ecf0f1; color: #95a5a6; border: 2px solid #ddd; }
+.step-badge.done   { background: #34C759; color: white; }
+.step-badge.active { background: #007AFF; color: white; }
+.step-badge.todo   { background: rgba(120,120,128,0.12); color: #8e8e93; }
 
 .step-header {
     display: flex;
     align-items: center;
     margin-bottom: 14px;
 }
-.step-header h3 { margin: 0; font-size: 16px; }
+.step-header h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
 
 .result-box {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
+    background: #f2f2f7;
+    border-radius: 10px;
     padding: 14px;
-    margin-top: 12px;
+    margin-top: 10px;
     white-space: pre-wrap;
     font-size: 13px;
     line-height: 1.7;
     max-height: 320px;
     overflow-y: auto;
+    color: #3a3a3c;
 }
 
 .htmx-request .spinner-inline { display: inline-block !important; }
 .spinner-inline {
     display: none;
-    width: 16px; height: 16px;
-    border: 2px solid #ccc;
-    border-top-color: #3498db;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.7s linear infinite;
     vertical-align: middle;
-    margin-left: 8px;
+    margin-left: 6px;
 }
 
-/* 步骤连接线 */
+/* 步骤进度条 */
 .steps-progress {
     display: flex;
     align-items: center;
     padding: 16px;
-    background: #ecf0f1;
-    border-radius: 4px;
-    margin-bottom: 24px;
+    background: #f2f2f7;
+    border-radius: 12px;
+    margin-bottom: 20px;
 }
 .steps-progress .step-node {
     text-align: center;
@@ -69,41 +69,47 @@
     height: 2px;
     margin: 0 4px;
     margin-bottom: 20px;
+    border-radius: 1px;
 }
 
 /* 进入创作按钮区域 */
 .enter-editor-banner {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    border-radius: 8px;
-    padding: 20px 24px;
+    background: linear-gradient(135deg, #007AFF, #0051d5);
+    border-radius: 14px;
+    padding: 18px 22px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     color: white;
     margin-bottom: 8px;
 }
-.enter-editor-banner h3 { margin: 0 0 4px; font-size: 16px; }
-.enter-editor-banner p  { margin: 0; font-size: 13px; opacity: 0.85; }
+.enter-editor-banner h3 { margin: 0 0 3px; font-size: 15px; font-weight: 600; }
+.enter-editor-banner p  { margin: 0; font-size: 13px; opacity: 0.8; }
 
-/* 手动输入切换 */
+/* Segmented control 风格 tab */
 .input-mode-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
+    display: inline-flex;
+    background: rgba(120,120,128,0.12);
+    border-radius: 9px;
+    padding: 2px;
+    margin-bottom: 14px;
+    gap: 0;
 }
 .input-mode-tab {
-    padding: 5px 14px;
-    border-radius: 4px;
+    padding: 5px 16px;
+    border-radius: 7px;
     font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    border: 1px solid #ddd;
-    background: white;
-    color: #555;
+    border: none;
+    background: transparent;
+    color: #3a3a3c;
+    transition: background 0.18s ease, color 0.18s ease;
 }
 .input-mode-tab.active {
-    background: #3498db;
-    color: white;
-    border-color: #3498db;
+    background: white;
+    color: #1c1c1e;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 </style>
 {% endblock %}

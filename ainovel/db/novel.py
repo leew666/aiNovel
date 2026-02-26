@@ -77,6 +77,12 @@ class Novel(Base, TimestampMixin):
     planning_content: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="步骤1：创作思路内容"
     )
+    world_building_raw: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="步骤2：世界观和角色原始文本（JSON解析失败时保存）"
+    )
+    outline_raw: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="步骤3：大纲原始文本（JSON解析失败时保存）"
+    )
 
     # 关系：一对多，一部小说包含多个分卷
     volumes: Mapped[List["Volume"]] = relationship(

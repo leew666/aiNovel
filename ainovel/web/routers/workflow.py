@@ -3,10 +3,9 @@
 
 提供6步创作流程的 API 接口
 """
-from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
+import asyncio
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from ainovel.web.dependencies import SessionDep, OrchestratorDep
@@ -14,10 +13,6 @@ from ainovel.web.schemas.workflow import *
 from ainovel.db.crud import novel_crud, chapter_crud
 
 router = APIRouter()
-
-# 配置模板
-BASE_DIR = Path(__file__).resolve().parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 @router.get("/{novel_id}/status", response_model=WorkflowStatusResponse)
@@ -39,7 +34,7 @@ async def step1_planning(
 ):
     """步骤1：生成创作思路"""
     try:
-        result = orch.step_1_planning(session, novel_id, request_data.initial_idea)
+        result = await asyncio.to_thread(orch.step_1_planning, session, novel_id, request_data.initial_idea)
         return Step1Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -66,7 +61,7 @@ async def step2_world_building(
 ):
     """步骤2：生成世界观和角色"""
     try:
-        result = orch.step_2_world_building(session, novel_id)
+        result = await asyncio.to_thread(orch.step_2_world_building, session, novel_id)
         return Step2Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -76,7 +71,7 @@ async def step2_world_building(
 async def step3_outline(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤3：生成大纲"""
     try:
-        result = orch.step_3_outline(session, novel_id)
+        result = await asyncio.to_thread(orch.step_3_outline, session, novel_id)
         return Step3Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -86,7 +81,7 @@ async def step3_outline(novel_id: int, session: SessionDep, orch: OrchestratorDe
 async def step4_detail_outline(chapter_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤4：生成详细细纲（单章节）"""
     try:
-        result = orch.step_4_detail_outline(session, chapter_id)
+        result = await asyncio.to_thread(orch.step_4_detail_outline, session, chapter_id)
         return Step4Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -96,7 +91,7 @@ async def step4_detail_outline(chapter_id: int, session: SessionDep, orch: Orche
 async def step4_batch(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤4：批量生成所有章节细纲"""
     try:
-        result = orch.step_4_batch_detail_outline(session, novel_id)
+        result = await asyncio.to_thread(orch.step_4_batch_detail_outline, session, novel_id)
         return Step4BatchResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -111,7 +106,8 @@ async def step5_writing(
 ):
     """步骤5：生成章节内容"""
     try:
-        result = orch.step_5_writing(
+        result = await asyncio.to_thread(
+            orch.step_5_writing,
             session,
             chapter_id,
             request_data.style_guide,
@@ -126,7 +122,7 @@ async def step5_writing(
 async def step6_quality_check(chapter_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤6：质量检查（单章节）"""
     try:
-        result = orch.step_6_quality_check(session, chapter_id)
+        result = await asyncio.to_thread(orch.step_6_quality_check, session, chapter_id)
         return Step6Response(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -141,7 +137,8 @@ async def consistency_check(
 ):
     """章节一致性检查（角色/世界观/时间线）"""
     try:
-        result = orch.check_chapter_consistency(
+        result = await asyncio.to_thread(
+            orch.check_chapter_consistency,
             session=session,
             chapter_id=chapter_id,
             content_override=request_data.content_override,
@@ -161,7 +158,8 @@ async def rewrite_chapter(
 ):
     """章节局部改写/重写"""
     try:
-        result = orch.rewrite_chapter(
+        result = await asyncio.to_thread(
+            orch.rewrite_chapter,
             session=session,
             chapter_id=chapter_id,
             instruction=request_data.instruction,
@@ -186,7 +184,8 @@ async def rollback_rewrite(
 ):
     """章节改写回滚到历史版本"""
     try:
-        result = orch.rollback_chapter_rewrite(
+        result = await asyncio.to_thread(
+            orch.rollback_chapter_rewrite,
             session=session,
             chapter_id=chapter_id,
             history_id=request_data.history_id,
@@ -201,7 +200,7 @@ async def rollback_rewrite(
 async def step6_batch(novel_id: int, session: SessionDep, orch: OrchestratorDep):
     """步骤6：批量质量检查所有已生成章节"""
     try:
-        result = orch.step_6_batch_quality_check(session, novel_id)
+        result = await asyncio.to_thread(orch.step_6_batch_quality_check, session, novel_id)
         return Step6BatchResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -230,7 +229,8 @@ async def pipeline_run(
     支持从任意合法步骤恢复，某章节失败不阻塞整体。
     """
     try:
-        result = orch.run_pipeline(
+        result = await asyncio.to_thread(
+            orch.run_pipeline,
             session=session,
             novel_id=novel_id,
             from_step=request_data.from_step,
@@ -402,7 +402,7 @@ async def analyze_satisfaction(
 ):
     """分析章节爽点密度、类型分布与三高评分"""
     try:
-        return orch.analyze_satisfaction(session, novel_id, request_data.chapter_range)
+        return await asyncio.to_thread(orch.analyze_satisfaction, session, novel_id, request_data.chapter_range)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -416,7 +416,7 @@ async def analyze_rhythm(
 ):
     """分析快/中/慢场景比例与快慢交替合理性"""
     try:
-        return orch.analyze_rhythm(session, novel_id, request_data.chapter_range)
+        return await asyncio.to_thread(orch.analyze_rhythm, session, novel_id, request_data.chapter_range)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -430,7 +430,7 @@ async def analyze_conflict(
 ):
     """分析明暗线强度、四维升级与不完全胜利"""
     try:
-        return orch.analyze_conflict(session, novel_id, request_data.chapter_range)
+        return await asyncio.to_thread(orch.analyze_conflict, session, novel_id, request_data.chapter_range)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -449,7 +449,8 @@ async def analyze_character(
 ):
     """检查角色价值观/行为/决策/语言四维一致性与成长弧光"""
     try:
-        return orch.analyze_character(
+        return await asyncio.to_thread(
+            orch.analyze_character,
             session, novel_id, request_data.character_name, request_data.chapter_range
         )
     except ValueError as e:
@@ -464,7 +465,7 @@ async def analyze_opening(
 ):
     """检查前3章是否符合黄金开篇五大铁律"""
     try:
-        return orch.analyze_opening(session, novel_id)
+        return await asyncio.to_thread(orch.analyze_opening, session, novel_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -472,17 +473,7 @@ async def analyze_opening(
 # ============ HTML 视图路由 ============
 
 
-@router.get("/{novel_id}", response_class=HTMLResponse)
-async def workflow_page(novel_id: int, request: Request, session: SessionDep):
-    """工作流页面（6步流程）"""
-    novel = novel_crud.get_by_id(session, novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说项目不存在")
-
-    return templates.TemplateResponse(
-        "workflow.html",
-        {
-            "request": request,
-            "novel": novel,
-        },
-    )
+@router.get("/{novel_id}", response_class=RedirectResponse)
+async def workflow_page(novel_id: int):
+    """重定向到小说详情页（工作流已整合到详情页）"""
+    return RedirectResponse(url=f"/novels/view/{novel_id}", status_code=301)

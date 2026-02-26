@@ -17,7 +17,7 @@ class Step1Request(BaseModel):
 class Step1UpdateRequest(BaseModel):
     """步骤1：用户编辑创作思路后更新"""
 
-    planning_content: str = Field(..., description="编辑后的创作思路（JSON字符串）")
+    planning_content: str = Field(..., description="编辑后的创作思路")
 
 
 class Step5Request(BaseModel):
@@ -84,6 +84,8 @@ class Step2Response(BaseModel):
     characters: list[dict[str, Any]]
     world_data: list[dict[str, Any]]
     stats: dict[str, Any]
+    raw_content: Optional[str] = Field(None, description="大模型原始输出文本")
+    parse_failed: bool = Field(False, description="JSON解析是否失败，失败时需用户手动修改raw_content")
 
 
 class Step3Response(BaseModel):
@@ -93,6 +95,8 @@ class Step3Response(BaseModel):
     workflow_status: str
     volumes: list[dict[str, Any]]
     stats: dict[str, Any]
+    raw_content: Optional[str] = Field(None, description="大模型原始输出文本")
+    parse_failed: bool = Field(False, description="JSON解析是否失败，失败时需用户手动修改raw_content")
 
 
 class Step4Response(BaseModel):

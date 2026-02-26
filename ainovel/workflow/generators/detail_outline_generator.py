@@ -100,14 +100,15 @@ class DetailOutlineGenerator:
 
         raw_content = response["content"]
 
-        # 解析JSON
-        detail_outline_data = self._parse_detail_outline(raw_content)
+        # 解析JSON，失败时返回空结构并标记
+        detail_outline_data, parse_failed = self._parse_detail_outline(raw_content)
 
         return {
             "detail_outline": detail_outline_data,
             "usage": response.get("usage", {}),
             "cost": response.get("cost", 0),
             "raw_content": raw_content,
+            "parse_failed": parse_failed,
         }
 
     def save_detail_outline(
@@ -128,13 +129,16 @@ class DetailOutlineGenerator:
         if not chapter:
             raise ValueError(f"章节不存在: {chapter_id}")
 
-        # 将细纲保存为JSON字符串
-        chapter.detail_outline = json.dumps(detail_outline, ensure_ascii=False, indent=2)
+        # 将细纲保存为JSON字符串；解析失败时直接存原始文本供用户编辑
+        if isinstance(detail_outline, dict):
+            chapter.detail_outline = json.dumps(detail_outline, ensure_ascii=False, indent=2)
+        else:
+            chapter.detail_outline = str(detail_outline)
         session.commit()
 
         return {
             "chapter_id": chapter_id,
-            "scenes_count": len(detail_outline.get("scenes", [])),
+            "scenes_count": len(detail_outline.get("scenes", [])) if isinstance(detail_outline, dict) else 0,
         }
 
     def generate_and_save(
@@ -163,8 +167,10 @@ class DetailOutlineGenerator:
             max_tokens=max_tokens,
         )
 
+        # 解析失败时用原始文本代替空dict入库
+        outline_to_save = result["raw_content"] if result["parse_failed"] else result["detail_outline"]
         stats = self.save_detail_outline(
-            session=session, chapter_id=chapter_id, detail_outline=result["detail_outline"]
+            session=session, chapter_id=chapter_id, detail_outline=outline_to_save
         )
 
         result["stats"] = stats
@@ -228,7 +234,7 @@ class DetailOutlineGenerator:
 
         return "\n".join(context_parts)
 
-    def _parse_detail_outline(self, content: str) -> Dict[str, Any]:
+    def _parse_detail_outline(self, content: str) -> tuple[Dict[str, Any], bool]:
         """
         解析LLM输出的细纲JSON
 
@@ -236,10 +242,8 @@ class DetailOutlineGenerator:
             content: LLM输出内容
 
         Returns:
-            细纲字典
-
-        Raises:
-            ValueError: JSON解析失败
+            (detail_outline_data, parse_failed)
+            解析失败时返回空结构和 parse_failed=True，不抛异常
         """
         # 尝试提取JSON代码块
         json_match = re.search(r"```json\s*(\{.*?\})\s*```", content, re.DOTALL)
@@ -251,10 +255,10 @@ class DetailOutlineGenerator:
             if json_match:
                 json_str = json_match.group(0)
             else:
-                raise ValueError(f"无法从输出中提取JSON: {content[:200]}")
+                return {"scenes": []}, True
 
         try:
             detail_outline_data = json.loads(json_str)
-            return detail_outline_data
-        except json.JSONDecodeError as e:
-            raise ValueError(f"JSON解析失败: {e}")
+            return detail_outline_data, False
+        except json.JSONDecodeError:
+            return {"scenes": []}, True

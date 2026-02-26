@@ -60,7 +60,7 @@ class OpenAIClient(BaseLLMClient):
         self.client = OpenAI(
             api_key=api_key,
             base_url=kwargs.get("api_base", "https://api.openai.com/v1"),
-            timeout=kwargs.get("timeout", 60),
+            timeout=kwargs.get("timeout", 400),
         )
 
         # 初始化tiktoken编码器(用于Token计数)
@@ -98,6 +98,10 @@ class OpenAIClient(BaseLLMClient):
         """
         try:
             logger.debug(f"调用OpenAI API, 模型: {self.model}, 消息数: {len(messages)}")
+            for i, msg in enumerate(messages):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                logger.info(f"[输入][{i}][{role}] {content}")
 
             # 调用API
             response: ChatCompletion = self.client.chat.completions.create(

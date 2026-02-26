@@ -76,14 +76,15 @@ class WorldBuildingGenerator:
 
         raw_content = response["content"]
 
-        # 解析JSON
-        world_building_data = self._parse_world_building(raw_content)
+        # 解析JSON，失败时返回空结构并标记
+        world_building_data, parse_failed = self._parse_world_building(raw_content)
 
         return {
             "world_building": world_building_data,
             "usage": response.get("usage", {}),
             "cost": response.get("cost", 0),
             "raw_content": raw_content,
+            "parse_failed": parse_failed,
         }
 
     def save_world_building(
@@ -191,14 +192,18 @@ class WorldBuildingGenerator:
             max_tokens=max_tokens,
         )
 
-        stats = self.save_world_building(
-            session=session, novel_id=novel_id, world_building_data=result["world_building"]
-        )
+        # 解析失败时跳过入库，由调用方保存原始文本
+        if result["parse_failed"]:
+            result["stats"] = {"world_data_created": 0, "characters_created": 0}
+        else:
+            stats = self.save_world_building(
+                session=session, novel_id=novel_id, world_building_data=result["world_building"]
+            )
+            result["stats"] = stats
 
-        result["stats"] = stats
         return result
 
-    def _parse_world_building(self, content: str) -> Dict[str, Any]:
+    def _parse_world_building(self, content: str) -> tuple[Dict[str, Any], bool]:
         """
         解析LLM输出的世界观和角色JSON
 
@@ -206,10 +211,8 @@ class WorldBuildingGenerator:
             content: LLM输出内容
 
         Returns:
-            世界观和角色字典
-
-        Raises:
-            ValueError: JSON解析失败
+            (world_building_data, parse_failed)
+            解析失败时返回空结构和 parse_failed=True，不抛异常
         """
         # 尝试提取JSON代码块
         json_match = re.search(r"```json\s*(\{.*?\})\s*```", content, re.DOTALL)
@@ -221,10 +224,10 @@ class WorldBuildingGenerator:
             if json_match:
                 json_str = json_match.group(0)
             else:
-                raise ValueError(f"无法从输出中提取JSON: {content[:200]}")
+                return {"world_data": [], "characters": []}, True
 
         try:
             world_building_data = json.loads(json_str)
-            return world_building_data
-        except json.JSONDecodeError as e:
-            raise ValueError(f"JSON解析失败: {e}")
+            return world_building_data, False
+        except json.JSONDecodeError:
+            return {"world_data": [], "characters": []}, True

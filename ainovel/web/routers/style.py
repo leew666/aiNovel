@@ -3,6 +3,7 @@
 
 提供文风档案的管理 API：上传参考文本、分析文风、查看/激活档案
 """
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -40,7 +41,8 @@ async def learn_style(
     若 set_active=true，此档案将在后续章节生成时自动应用。
     """
     try:
-        result = orch.learn_style(
+        result = await asyncio.to_thread(
+            orch.learn_style,
             session=session,
             novel_id=novel_id,
             name=request_data.name,

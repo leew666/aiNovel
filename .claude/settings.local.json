@@ -25,7 +25,12 @@
       "mcp__memory__create_relations",
       "Bash(sqlite3:*)",
       "Bash(python3:*)",
-      "Bash(.venv/bin/python:*)"
+      "Bash(.venv/bin/python:*)",
+      "Bash(for db in /Users/lee/Documents/github/me/aiNovel/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/db/ainovel.db)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(for db in /Users/lee/Documents/github/me/aiNovel/data/ainovel.db /Users/lee/Documents/github/me/aiNovel/data/db/ainovel.db)"
     ]
   }
 }

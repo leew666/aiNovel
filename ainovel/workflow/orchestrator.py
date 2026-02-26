@@ -160,18 +160,14 @@ class WorkflowOrchestrator:
         if not novel:
             raise NovelNotFoundError(novel_id)
 
-        # 验证JSON格式
-        try:
-            planning_data = json.loads(planning_content)
-        except json.JSONDecodeError as e:
-            raise InvalidFormatError("创作思路JSON", str(e))
-
         novel.planning_content = planning_content
+        novel.workflow_status = WorkflowStatus.PLANNING
+        novel.current_step = 1
         session.commit()
 
         return {
             "novel_id": novel_id,
-            "planning": planning_data,
+            "planning": planning_content,
             "message": "创作思路已更新",
         }
 
@@ -205,6 +201,10 @@ class WorkflowOrchestrator:
             planning_content=novel.planning_content,
         )
 
+        # 解析失败时将原始文本保存到 world_building_raw，供用户手动修改
+        if result.get("parse_failed"):
+            novel.world_building_raw = result.get("raw_content", "")
+
         # 更新状态
         novel.workflow_status = WorkflowStatus.WORLD_BUILDING
         novel.current_step = 2
@@ -235,13 +235,15 @@ class WorkflowOrchestrator:
         # 生成并保存大纲
         result = outline_gen.generate_and_save(novel_id=novel_id)
 
-        # 更新状态
+        # 更新状态（解析失败时也推进，原始文本已存入 novel.outline_raw）
         novel.workflow_status = WorkflowStatus.OUTLINE
         novel.current_step = 3
         session.commit()
 
         result["novel_id"] = novel_id
         result["workflow_status"] = novel.workflow_status.value
+        # 展开 outline.volumes 到顶层，与 Step3Response schema 对齐
+        result["volumes"] = result.get("outline", {}).get("volumes", [])
         return result
 
     def step_4_detail_outline(

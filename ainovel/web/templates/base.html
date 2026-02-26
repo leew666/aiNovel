@@ -14,10 +14,11 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            background: #f2f2f7;
+            color: #1c1c1e;
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
@@ -27,60 +28,92 @@
         }
 
         header {
-            background: #2c3e50;
-            color: white;
-            padding: 20px 0;
-            margin-bottom: 30px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            border-bottom: 0.5px solid rgba(0,0,0,0.12);
+            color: #1c1c1e;
+            padding: 14px 0;
+            margin-bottom: 28px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         header h1 {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
+            letter-spacing: -0.3px;
         }
 
         .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #3498db;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 18px;
+            background: #007AFF;
             color: white;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 10px;
             border: none;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 500;
+            letter-spacing: -0.1px;
+            transition: opacity 0.15s ease, transform 0.1s ease;
         }
 
-        .btn:hover {
-            background: #2980b9;
+        .btn:hover { opacity: 0.85; }
+        .btn:active { transform: scale(0.97); opacity: 0.9; }
+
+        .btn-success {
+            background: #34C759;
         }
 
-        .btn-success { background: #27ae60; }
-        .btn-success:hover { background: #229954; }
+        .btn-danger {
+            background: #FF3B30;
+        }
 
-        .btn-danger { background: #e74c3c; }
-        .btn-danger:hover { background: #c0392b; }
+        .btn-secondary {
+            background: rgba(120,120,128,0.16);
+            color: #1c1c1e;
+        }
+        .btn-secondary:hover { background: rgba(120,120,128,0.24); }
 
         .card {
             background: white;
-            border-radius: 8px;
+            border-radius: 16px;
             padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
         }
 
         .card h2 {
-            font-size: 20px;
-            margin-bottom: 15px;
-            color: #2c3e50;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: #1c1c1e;
+            letter-spacing: -0.3px;
         }
 
         input, textarea, select {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 10px;
             font-size: 14px;
+            font-family: inherit;
+            background: #f9f9f9;
+            color: #1c1c1e;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            outline: none;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+            background: white;
         }
 
         textarea {
@@ -88,27 +121,22 @@
             resize: vertical;
         }
 
-        .htmx-indicator {
-            display: none;
-        }
-
-        .htmx-request .htmx-indicator {
-            display: inline-block;
-        }
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
 
         .loading {
             text-align: center;
             padding: 20px;
-            color: #7f8c8d;
+            color: #8e8e93;
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            border: 2.5px solid rgba(0,0,0,0.08);
+            border-top: 2.5px solid #007AFF;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+            width: 36px;
+            height: 36px;
+            animation: spin 0.8s linear infinite;
             margin: 20px auto;
         }
 
@@ -118,19 +146,21 @@
         }
 
         .error {
-            background: #ffe6e6;
-            color: #c0392b;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 15px;
+            background: rgba(255,59,48,0.08);
+            color: #FF3B30;
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 14px;
         }
 
         .success {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 15px;
+            background: rgba(52,199,89,0.1);
+            color: #248a3d;
+            padding: 12px 14px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 14px;
         }
     </style>
 
@@ -139,11 +169,11 @@
 <body>
     <header>
         <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
-            <h1><a href="/" style="color: white; text-decoration: none;">✍️ AI小说创作系统</a></h1>
+            <h1><a href="/" style="color: #1c1c1e; text-decoration: none;">✍️ AI小说创作系统</a></h1>
             <nav style="display: flex; gap: 16px; align-items: center;">
-                <a href="/" style="color: #bdc3c7; text-decoration: none; font-size: 14px;">首页</a>
-                <a href="/settings/" style="color: #bdc3c7; text-decoration: none; font-size: 14px;">⚙️ 配置</a>
-                <a href="/docs" style="color: #bdc3c7; text-decoration: none; font-size: 14px;">API 文档</a>
+                <a href="/" style="color: #007AFF; text-decoration: none; font-size: 14px; font-weight: 500;">首页</a>
+                <a href="/settings/" style="color: #007AFF; text-decoration: none; font-size: 14px; font-weight: 500;">⚙️ 配置</a>
+                <a href="/docs" style="color: #007AFF; text-decoration: none; font-size: 14px; font-weight: 500;">API 文档</a>
             </nav>
         </div>
     </header>
